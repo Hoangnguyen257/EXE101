@@ -28,6 +28,7 @@ export function SaveDocDialog({
   const [shipmentId, setShipmentId] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [type, setType] = useState<DocType>('BL')
+  const [customTypeName, setCustomTypeName] = useState('')
   const [docDate, setDocDate] = useState(new Date().toISOString().slice(0, 10))
   const [archiveBoxId, setArchiveBoxId] = useState('')
   const [retentionUntil, setRetentionUntil] = useState('')
@@ -38,19 +39,25 @@ export function SaveDocDialog({
     !shipmentQ || normalize(`${s.jobNo} ${s.blNo} ${s.customerName}`).includes(normalize(shipmentQ)),
   )
 
-  const docTypeItems = REQUIRED_DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_LABEL[t] }))
+  const docTypeItems = [
+    ...REQUIRED_DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_LABEL[t] })),
+    { value: 'OTHER' as DocType, label: 'Khác (tự nhập)' },
+  ]
 
   const handleSave = async () => {
     if (!shipmentId || !customerId || !type || !docDate) return
+    if (type === 'OTHER' && !customTypeName.trim()) return
     setSaving(true)
     const id = newDocId()
     const shipment = shipments.find((s) => s.id === shipmentId)!
+    const displayLabel = type === 'OTHER' && customTypeName.trim() ? customTypeName.trim() : DOC_TYPE_LABEL[type]
     await saveDocument({
       id,
       shipmentId,
       customerId,
       type,
-      title: `${DOC_TYPE_LABEL[type]} ${shipment.jobNo}`,
+      customTypeName: type === 'OTHER' ? customTypeName.trim() : undefined,
+      title: `${displayLabel} ${shipment.jobNo}`,
       docDate,
       archiveBoxId: archiveBoxId || undefined,
       retentionUntil: retentionUntil || undefined,
@@ -126,6 +133,19 @@ export function SaveDocDialog({
             </Select>
           </div>
 
+          {/* Custom doc type name if type === 'OTHER' */}
+          {type === 'OTHER' && (
+            <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+              <Label>Tên loại chứng từ tùy chỉnh *</Label>
+              <Input
+                placeholder="Nhập tên loại chứng từ (VD: Giấy kiểm dịch, Bảo hiểm...)"
+                value={customTypeName}
+                onChange={(e) => setCustomTypeName(e.target.value)}
+                autoFocus
+              />
+            </div>
+          )}
+
           {/* Doc date */}
           <div className="flex flex-col gap-1.5">
             <Label>Ngày chứng từ *</Label>
@@ -154,7 +174,7 @@ export function SaveDocDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Hủy</Button>
-          <Button onClick={handleSave} disabled={saving || !shipmentId || !docDate}>
+          <Button onClick={handleSave} disabled={saving || !shipmentId || !docDate || (type === 'OTHER' && !customTypeName.trim())}>
             {saving ? 'Đang lưu...' : 'Lưu chứng từ'}
           </Button>
         </DialogFooter>

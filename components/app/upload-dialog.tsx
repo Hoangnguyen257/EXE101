@@ -30,6 +30,7 @@ interface PendingFile {
   name: string
   sizeKb: number
   type: DocType
+  customTypeName?: string
   confidence: number
   shipmentId: string
   progress: number
@@ -64,7 +65,10 @@ const SAMPLE_FILES = [
   { name: 'scan_0931.pdf', size: 1520 * 1024 },
 ]
 
-const DOC_TYPE_ITEMS = (Object.keys(DOC_TYPE_LABEL) as DocType[]).map((t) => ({ value: t, label: DOC_TYPE_LABEL[t] }))
+const DOC_TYPE_ITEMS = (Object.keys(DOC_TYPE_LABEL) as DocType[]).map((t) => ({
+  value: t,
+  label: t === 'OTHER' ? 'Khác (tự nhập)' : DOC_TYPE_LABEL[t],
+}))
 
 interface UploadDialogProps {
   open: boolean
@@ -275,35 +279,45 @@ export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipmen
                       {uploading ? (
                         <Progress value={f.progress} aria-label={`Tiến độ tải ${f.name}`} />
                       ) : (
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <Select items={DOC_TYPE_ITEMS} value={f.type} onValueChange={(v) => v && update(f.id, { type: v as DocType, confidence: 100 })}>
-                            <SelectTrigger size="sm" className="w-full" aria-label="Loại chứng từ">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                {DOC_TYPE_ITEMS.map((t) => (
-                                  <SelectItem key={t.value} value={t.value}>
-                                    {t.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                          <Select items={shipmentItems} value={f.shipmentId || null} onValueChange={(v) => v && update(f.id, { shipmentId: v as string })}>
-                            <SelectTrigger size="sm" className="w-full" aria-label="Lô hàng" aria-invalid={!f.shipmentId}>
-                              <SelectValue placeholder="Chưa gán lô hàng" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                {shipmentItems.map((s) => (
-                                  <SelectItem key={s.value} value={s.value}>
-                                    {s.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
+                        <div className="flex flex-col gap-2">
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <Select items={DOC_TYPE_ITEMS} value={f.type} onValueChange={(v) => v && update(f.id, { type: v as DocType, confidence: 100 })}>
+                              <SelectTrigger size="sm" className="w-full" aria-label="Loại chứng từ">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  {DOC_TYPE_ITEMS.map((t) => (
+                                    <SelectItem key={t.value} value={t.value}>
+                                      {t.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <Select items={shipmentItems} value={f.shipmentId || null} onValueChange={(v) => v && update(f.id, { shipmentId: v as string })}>
+                              <SelectTrigger size="sm" className="w-full" aria-label="Lô hàng" aria-invalid={!f.shipmentId}>
+                                <SelectValue placeholder="Chưa gán lô hàng" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  {shipmentItems.map((s) => (
+                                    <SelectItem key={s.value} value={s.value}>
+                                      {s.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {f.type === 'OTHER' && (
+                            <Input
+                              className="h-8 text-xs"
+                              placeholder="Nhập tên loại chứng từ..."
+                              value={f.customTypeName ?? ''}
+                              onChange={(e) => update(f.id, { customTypeName: e.target.value })}
+                            />
+                          )}
                         </div>
                       )}
                     </li>

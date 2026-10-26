@@ -142,7 +142,7 @@ export function DocumentChecklist({
                     <Link href={`/documents/${d.id}`} className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/60">
                       <FileTextIcon className="size-4 shrink-0 text-primary" />
                       <div className="flex min-w-0 flex-col">
-                        <span className="truncate text-sm font-medium">{DOC_TYPE_LABEL[d.type]}</span>
+                        <span className="truncate text-sm font-medium">{d.customTypeName || DOC_TYPE_LABEL[d.type]}</span>
                         <span className="truncate text-xs text-muted-foreground">{d.fileName}</span>
                       </div>
                       {d.lock && <span className="ml-auto"><LockBadge userName={userName(d.lock.userId)} since={d.lock.since} /></span>}

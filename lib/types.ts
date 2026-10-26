@@ -140,6 +140,7 @@ export interface DocumentFile {
   shipmentId: string
   customerId: string
   type: DocType
+  customTypeName?: string
   title: string
   fileName: string
   sizeKb: number

@@ -222,13 +222,12 @@ export function ScanContent() {
             <span className="text-xs text-muted-foreground">hoặc</span>
             <div className="h-px flex-1 bg-border" />
           </div>
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground transition hover:bg-muted/50">
-            <ImagePlusIcon className="size-4" />
-            Chọn ảnh từ máy
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-sm font-medium text-muted-foreground transition hover:bg-muted/50 hover:text-foreground">
+            <ImagePlusIcon className="size-4 text-primary" />
+            Chọn ảnh từ thư viện thiết bị
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               multiple
               className="sr-only"
               onChange={(e) => {

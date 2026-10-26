@@ -22,6 +22,7 @@ export interface SavedDocument {
   shipmentId: string
   customerId: string
   type: DocType
+  customTypeName?: string
   title: string
   docDate: string
   archiveBoxId?: string

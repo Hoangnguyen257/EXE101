@@ -33,6 +33,19 @@ export async function getShipments(): Promise<ShipmentWithProgress[]> {
   return db.shipments.map(withProgress).sort((a, b) => b.etd.localeCompare(a.etd))
 }
 
+const GOODS_BY_CUSTOMER: Record<string, string> = {
+  c1: 'FROZEN PANGASIUS FILLET (CÁ TRA PHI LÊ ĐÔNG LẠNH), HS 0304.62',
+  c2: 'COTTON T-SHIRTS AND KNITWEAR (ÁO THUN COTTON), HS 6109.10',
+  c3: 'WOODEN DINING FURNITURE (BÀN GHẾ GỖ), HS 9403.60',
+  c4: 'ROBUSTA COFFEE BEANS GRADE 1 (CÀ PHÊ NHÂN), HS 0901.11',
+  c5: 'PRINTED CIRCUIT BOARD ASSEMBLY (BẢN MẠCH ĐIỆN TỬ), HS 8534.00',
+  c6: 'LEATHER FOOTWEAR (GIÀY DA), HS 6403.99',
+}
+
+export function getGoodsDescription(customerId: string): string {
+  return GOODS_BY_CUSTOMER[customerId] ?? 'Hàng hóa thông thường'
+}
+
 export async function getShipment(id: string) {
   const s = db.shipments.find((x) => x.id === id)
   if (!s) return null
@@ -42,6 +55,7 @@ export async function getShipment(id: string) {
     owner: db.users.find((u) => u.id === s.ownerId)!,
     documents: db.documents.filter((d) => d.shipmentId === id),
     activities: db.activities.filter((a) => a.shipmentId === id),
+    goods: getGoodsDescription(s.customerId),
   }
 }
 

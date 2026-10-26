@@ -38,7 +38,7 @@ export function DocumentsListClient({
       if (!nq) return true
       const shipment = shipments.find((s) => s.id === d.shipmentId)
       const customer = customers.find((c) => c.id === d.customerId)
-      const searchable = normalize(`${d.title} ${shipment?.jobNo ?? ''} ${shipment?.blNo ?? ''} ${customer?.name ?? ''} ${d.pages.map((p) => p.ocrText).join(' ')}`)
+      const searchable = normalize(`${d.title} ${d.customTypeName ?? ''} ${shipment?.jobNo ?? ''} ${shipment?.blNo ?? ''} ${customer?.name ?? ''} ${d.pages.map((p) => p.ocrText).join(' ')}`)
       return searchable.includes(nq)
     })
   }, [docs, q, typeFilter, shipments, customers])
@@ -52,6 +52,7 @@ export function DocumentsListClient({
   const typeItems = [
     { value: 'all', label: 'Mọi loại' },
     ...REQUIRED_DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_SHORT[t] })),
+    { value: 'OTHER', label: 'Khác' },
   ]
 
   if (docs.length === 0) {
@@ -111,7 +112,7 @@ export function DocumentsListClient({
                   <span className="text-sm font-medium">{doc.title}</span>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{DOC_TYPE_SHORT[doc.type]}</Badge>
+                  <Badge variant="secondary">{doc.type === 'OTHER' && doc.customTypeName ? doc.customTypeName : DOC_TYPE_SHORT[doc.type]}</Badge>
                 </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   {shipment?.jobNo ?? doc.shipmentId}
