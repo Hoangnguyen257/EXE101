@@ -2,7 +2,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileTextIcon, PackageIcon, ScanTextIcon, SearchXIcon, SparklesIcon } from 'lucide-react'
+import { FileTextIcon, PackageIcon, ScanLineIcon, ScanTextIcon, SearchXIcon, SparklesIcon } from 'lucide-react'
 import {
   Command,
   CommandDialog,
@@ -16,7 +16,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Badge } from '@/components/ui/badge'
 import { Kbd } from '@/components/ui/kbd'
 import type { SearchIndex } from '@/lib/data'
-import { search, type SearchScope } from '@/lib/search'
+import { search, type SearchScope, normalize } from '@/lib/search'
+import type { SavedDocument } from '@/lib/storage'
 
 const SCOPES: { value: SearchScope; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
@@ -50,6 +51,13 @@ export function CommandSearch({
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<SearchScope>('all')
   const deferredQuery = useDeferredValue(query)
+  const [idbDocs, setIdbDocs] = useState<SavedDocument[]>([])
+
+  // Load scanned documents from IndexedDB on open
+  useEffect(() => {
+    if (!open) return
+    import('@/lib/storage').then(({ listDocuments }) => listDocuments().then(setIdbDocs))
+  }, [open])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -65,6 +73,16 @@ export function CommandSearch({
   const hits = useMemo(() => search(index, deferredQuery, scope), [index, deferredQuery, scope])
   const shipmentHits = hits.filter((h) => h.kind === 'shipment')
   const documentHits = hits.filter((h) => h.kind === 'document')
+
+  // Search IDB documents (client-side)
+  const idbHits = useMemo(() => {
+    if (!deferredQuery) return []
+    const tokens = normalize(deferredQuery).split(/\s+/).filter(Boolean)
+    return idbDocs.filter((d) => {
+      const corpus = normalize(`${d.title} ${d.pages.map((p) => p.ocrText).join(' ')}`)
+      return tokens.every((t) => corpus.includes(t))
+    }).slice(0, 6)
+  }, [deferredQuery, idbDocs])
 
   const go = (href: string) => {
     onOpenChange(false)
@@ -168,6 +186,20 @@ export function CommandSearch({
                       <Badge variant="outline" className="ml-auto shrink-0">
                         {MATCH_LABEL[h.matchedIn]}
                       </Badge>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {idbHits.length > 0 && (
+                <CommandGroup heading="Chứng từ đã quét">
+                  {idbHits.map((d) => (
+                    <CommandItem key={d.id} value={d.id} onSelect={() => go(`/documents/${d.id}/edit`)} className="items-start">
+                      <ScanLineIcon className="mt-0.5 text-primary" />
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate font-medium">{d.title}</span>
+                        <span className="truncate text-xs text-muted-foreground">Lưu trên thiết bị · {d.pages.length} trang</span>
+                      </div>
+                      <Badge variant="secondary" className="ml-auto shrink-0">Quét</Badge>
                     </CommandItem>
                   ))}
                 </CommandGroup>

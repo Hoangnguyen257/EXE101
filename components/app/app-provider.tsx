@@ -20,6 +20,8 @@ type ShareTarget = Pick<DocumentFile, 'id' | 'title' | 'fileName'>
 interface AppContextValue {
   currentUser: User
   users: User[]
+  shipments: ShipmentWithProgress[]
+  customers: Customer[]
   openSearch: () => void
   openUpload: (preset?: UploadPreset, files?: File[]) => void
   openShare: (doc: ShareTarget) => void
@@ -35,6 +37,9 @@ export function useApp() {
   if (!ctx) throw new Error('useApp must be used inside <AppProvider>')
   return ctx
 }
+
+/** Alias that also exposes shipments & customers */
+export const useAppContext = useApp
 
 interface AppProviderProps {
   children: React.ReactNode
@@ -68,6 +73,8 @@ export function AppProvider({ children, searchIndex, shipments, customers, curre
     () => ({
       currentUser,
       users,
+      shipments,
+      customers,
       openSearch: () => setSearchOpen(true),
       openUpload,
       openShare: setShareDoc,
@@ -75,7 +82,7 @@ export function AppProvider({ children, searchIndex, shipments, customers, curre
       sync,
       markSyncing,
     }),
-    [currentUser, users, openUpload, sync, markSyncing],
+    [currentUser, users, shipments, customers, openUpload, sync, markSyncing],
   )
 
   return (
