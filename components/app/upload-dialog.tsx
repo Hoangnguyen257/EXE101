@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CloudUploadIcon, FileTextIcon, SparklesIcon, Trash2Icon, WandSparklesIcon } from 'lucide-react'
+import Link from 'next/link'
+import { CameraIcon, CloudUploadIcon, FileTextIcon, SparklesIcon, Trash2Icon, WandSparklesIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -192,7 +193,15 @@ export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipmen
           />
 
           {files.length === 0 ? (
-            <div className="flex items-center justify-center">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                render={<Link href="/scan" onClick={() => onOpenChange(false)} />}
+              >
+                <CameraIcon data-icon="inline-start" />
+                Chụp ảnh / Quét qua Camera
+              </Button>
               <Button variant="ghost" size="sm" onClick={() => addFiles(SAMPLE_FILES)}>
                 <WandSparklesIcon data-icon="inline-start" />
                 Dùng file mẫu để thử
