@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { PageHeader } from '@/components/app/page-header'
 import { DocumentsListClient } from '@/components/documents/documents-list-client'
-import { getCustomers, getShipments } from '@/lib/data'
+import { getCustomers, getDocuments, getShipments } from '@/lib/data'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ScanLineIcon } from 'lucide-react'
@@ -9,19 +9,21 @@ import { ScanLineIcon } from 'lucide-react'
 export const metadata: Metadata = { title: 'Chứng từ đã lưu' }
 
 export default async function DocumentsPage() {
-  const [shipments, customers] = await Promise.all([getShipments(), getCustomers()])
+  const [shipments, customers, documents] = await Promise.all([getShipments(), getCustomers(), getDocuments()])
+
   return (
     <>
       <PageHeader
-        title="Chứng từ đã lưu"
-        description="Toàn bộ chứng từ được quét và lưu trên thiết bị (IndexedDB)."
+        title="Quản lý Chứng từ"
+        description="Toàn bộ chứng từ đã được lưu trữ an toàn trong kho dữ liệu tập trung của doanh nghiệp."
         actions={
-        <Button render={<Link href="/scan" />}>
-          <ScanLineIcon className="mr-2 size-4" />Quét chứng từ mới
-        </Button>
+          <Button render={<Link href="/scan" />}>
+            <ScanLineIcon className="mr-2 size-4" />
+            Quét chứng từ mới
+          </Button>
         }
       />
-      <DocumentsListClient shipments={shipments} customers={customers} />
+      <DocumentsListClient shipments={shipments} customers={customers} initialDocuments={documents} />
     </>
   )
 }

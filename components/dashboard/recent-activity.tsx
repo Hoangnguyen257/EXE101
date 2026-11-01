@@ -1,12 +1,24 @@
 import Link from 'next/link'
-import { DownloadIcon, EyeIcon, HistoryIcon, PencilIcon, Share2Icon, Trash2Icon, UploadIcon } from 'lucide-react'
+import {
+  DownloadIcon,
+  EyeIcon,
+  HistoryIcon,
+  PencilIcon,
+  Share2Icon,
+  Trash2Icon,
+  UploadIcon,
+  LogInIcon,
+  LogOutIcon,
+  CheckCircle2Icon,
+  ActivityIcon,
+} from 'lucide-react'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { formatRelative } from '@/lib/labels'
-import type { Activity, AuditAction, User } from '@/lib/types'
+import type { Activity, User } from '@/lib/types'
 
-const ACTION_ICON: Record<AuditAction, typeof EyeIcon> = {
+const ACTION_ICON: Record<string, typeof EyeIcon> = {
   view: EyeIcon,
   download: DownloadIcon,
   edit: PencilIcon,
@@ -14,6 +26,12 @@ const ACTION_ICON: Record<AuditAction, typeof EyeIcon> = {
   upload: UploadIcon,
   share: Share2Icon,
   restore: HistoryIcon,
+  login: LogInIcon,
+  logout: LogOutIcon,
+  approve: CheckCircle2Icon,
+  create: UploadIcon,
+  update: PencilIcon,
+  share_expired_auto_revoked: HistoryIcon,
 }
 
 export function RecentActivity({ activities, users }: { activities: Activity[]; users: User[] }) {
@@ -32,16 +50,17 @@ export function RecentActivity({ activities, users }: { activities: Activity[]; 
         <ol className="flex flex-col">
           {activities.map((a, i) => {
             const user = users.find((u) => u.id === a.userId)
-            const Icon = ACTION_ICON[a.action]
+            const actionKey = (a.action || '').toLowerCase()
+            const Icon = ACTION_ICON[actionKey] ?? ActivityIcon ?? EyeIcon
             return (
               <li key={a.id} className="relative flex gap-3 pb-4 last:pb-0">
                 {i < activities.length - 1 && <span aria-hidden className="absolute top-9 left-4 h-[calc(100%-2.25rem)] w-px bg-border" />}
                 <Avatar className="size-8">
-                  <AvatarFallback className="text-xs">{user?.initials}</AvatarFallback>
+                  <AvatarFallback className="text-xs">{user?.initials ?? '??'}</AvatarFallback>
                 </Avatar>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5 pt-0.5">
                   <p className="text-sm leading-snug">
-                    <span className="font-medium">{user?.name}</span> {a.description}
+                    <span className="font-medium">{user?.name ?? 'Người dùng'}</span> {a.description}
                   </p>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Icon className="size-3" />

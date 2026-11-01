@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import type { SearchIndex, ShipmentWithProgress } from '@/lib/data'
 import type { Customer, DocType, DocumentFile, User } from '@/lib/types'
 import { CommandSearch } from './command-search'
@@ -62,7 +63,42 @@ export function AppProvider({ children, searchIndex, shipments, customers, curre
 
   const markSyncing = useCallback(() => {
     setSync('syncing')
-    window.setTimeout(() => setSync('synced'), 2200)
+    window.setTimeout(() => setSync('synced'), 1200)
+  }, [])
+
+  // Real-time multi-device synchronization via Server-Sent Events (SSE)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let es: EventSource | null = null
+
+    try {
+      es = new EventSource('/api/sync/events')
+
+      es.addEventListener('sync', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          setSync('syncing')
+          if (data.eventType === 'DOCUMENT_CREATED') {
+            toast.info(`Có chứng từ mới tải lên: ${data.payload.title || ''}`, {
+              description: 'Dữ liệu hệ thống đã được đồng bộ tự động.',
+            })
+          }
+          window.setTimeout(() => setSync('synced'), 1200)
+        } catch {
+          // ignore
+        }
+      })
+
+      es.onerror = () => {
+        // Fallback or retry
+      }
+    } catch {
+      // Fallback
+    }
+
+    return () => {
+      es?.close()
+    }
   }, [])
 
   const openUpload = useCallback((preset?: UploadPreset, files?: File[]) => {

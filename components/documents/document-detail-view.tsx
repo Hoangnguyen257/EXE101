@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useApp } from '@/components/app/app-provider'
-import { DOC_TYPE_LABEL, formatDate, formatDateTime, formatSize } from '@/lib/labels'
+import { DOC_TYPE_LABEL, formatDate, formatDateTime, formatRelative, formatSize } from '@/lib/labels'
 import type { Customer, DocumentFile, Shipment, ArchiveBox, User } from '@/lib/types'
 
 interface DocumentDetailViewProps {
@@ -43,14 +43,7 @@ export function DocumentDetailView({
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? id
 
   const handleDownload = () => {
-    // Generate a simple text/pdf mock download
-    const blob = new Blob([document.ocrText], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = window.document.createElement('a')
-    a.href = url
-    a.download = document.fileName.replace(/\.pdf$/i, '.txt')
-    a.click()
-    URL.revokeObjectURL(url)
+    window.location.href = `/api/documents/${document.id}/download`
   }
 
   const handlePrint = () => {

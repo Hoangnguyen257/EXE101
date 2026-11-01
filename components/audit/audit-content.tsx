@@ -85,7 +85,7 @@ export function AuditContent({ logs, users }: { logs: AuditLog[]; users: User[] 
                         </TableCell>
                         <TableCell>
                           <Badge variant={ACTION_VARIANT[log.action] ?? 'secondary'}>
-                            {AUDIT_ACTION_LABEL[log.action]}
+                            {AUDIT_ACTION_LABEL[log.action] ?? log.action}
                           </Badge>
                         </TableCell>
                         <TableCell>

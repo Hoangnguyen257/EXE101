@@ -43,12 +43,20 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  nativeButton,
+  render,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  // Tự động gán nativeButton={false} khi render phần tử tùy chỉnh (như Next.js <Link> hoặc <a>)
+  // để thỏa mãn chuẩn Accessibility của Base UI và tránh cảnh báo console error
+  const resolvedNativeButton = nativeButton ?? (render ? false : undefined)
+
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      nativeButton={resolvedNativeButton}
+      render={render}
       {...props}
     />
   )

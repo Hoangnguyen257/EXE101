@@ -5,10 +5,24 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "tsx tests/enterprise-system.test.ts && tsx tests/security-audit-refactor.test.ts && tsx tests/business-integration.test.ts && tsx tests/task10-comprehensive-acceptance.test.ts && tsx tests/task12-security-verification.test.ts && tsx tests/task13-hardening.test.ts && tsx tests/task14-final-validation.test.ts",
+    "test:security": "tsx tests/security-audit-refactor.test.ts",
+    "test:business": "tsx tests/business-integration.test.ts",
+    "test:enterprise": "tsx tests/enterprise-system.test.ts",
+    "test:acceptance": "tsx tests/task10-comprehensive-acceptance.test.ts",
+    "test:task12": "tsx tests/task12-security-verification.test.ts",
+    "test:task13": "tsx tests/task13-hardening.test.ts",
+    "test:task14": "tsx tests/task14-final-validation.test.ts",
+    "test:benchmark": "tsx tests/benchmark-search.ts",
+    "test:benchmark13": "tsx tests/benchmark-search-task13.ts",
+    "test:benchmark14": "tsx tests/benchmark-search-task14.ts",
+    "test:verification": "tsx tests/comprehensive-verification.ts",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
+    "@prisma/client": "^6.4.1",
     "@tiptap/extension-table": "^3.32.0",
     "@tiptap/extension-table-cell": "^3.32.0",
     "@tiptap/extension-table-header": "^3.32.0",
@@ -20,6 +34,7 @@
     "@tiptap/starter-kit": "^3.32.0",
     "@types/file-saver": "^2.0.7",
     "@vercel/analytics": "1.6.1",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -29,6 +44,7 @@
     "file-saver": "^2.0.5",
     "idb": "^8.0.4",
     "input-otp": "^1.5.0",
+    "jose": "^6.2.14",
     "lucide-react": "^1.16.0",
     "next": "16.4.3",
     "next-themes": "^0.4.6",
@@ -44,11 +60,14 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "postcss": "^8.5",
+    "prisma": "^6.4.1",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "5.7.3"
   }
 }

@@ -142,3 +142,124 @@ export function search(index: SearchIndex, rawQuery: string, scope: SearchScope 
 
   return hits.sort((a, b) => b.score - a.score).slice(0, 24)
 }
+
+/**
+ * INDEXED SEARCH ENGINE (TASK 13.5)
+ * Cung cấp giải pháp tìm kiếm đảo ngược (Inverted Index) và tiền chuẩn hóa dữ liệu:
+ * - Chuẩn hóa NFD và phân rã từ khóa một lần duy nhất lúc lập chỉ mục
+ * - Giảm thiểu tối đa chi phí tính toán Levenshtein trên quy mô 100,000+ văn bản
+ */
+export class IndexedSearchEngine {
+  private invertedIndex = new Map<string, Set<string>>()
+  private docMap = new Map<string, any>()
+  private shipmentMap = new Map<string, any>()
+  private customers: any[] = []
+
+  constructor(index: SearchIndex) {
+    this.customers = index.customers
+    this.buildIndex(index)
+  }
+
+  private buildIndex(index: SearchIndex) {
+    for (const s of index.shipments) {
+      this.shipmentMap.set(s.id, s)
+      const text = `${s.jobNo} ${s.blNo}`
+      const tokens = normalize(text).split(/[^a-z0-9]+/).filter(Boolean)
+      for (const t of tokens) {
+        if (!this.invertedIndex.has(t)) this.invertedIndex.set(t, new Set())
+        this.invertedIndex.get(t)!.add(`sh_${s.id}`)
+      }
+    }
+
+    for (const d of index.documents) {
+      this.docMap.set(d.id, d)
+      const text = `${d.title} ${d.fileName} ${d.ocrText}`
+      const tokens = normalize(text).split(/[^a-z0-9]+/).filter(Boolean)
+      for (const t of tokens) {
+        if (!this.invertedIndex.has(t)) this.invertedIndex.set(t, new Set())
+        this.invertedIndex.get(t)!.add(`doc_${d.id}`)
+      }
+    }
+  }
+
+  public search(rawQuery: string, scope: SearchScope = 'all'): SearchHit[] {
+    const tokens = normalize(rawQuery).split(/\s+/).filter(Boolean)
+    if (!tokens.length) return []
+
+    // 1. Thu thập ứng viên (Candidate Documents) từ Inverted Index
+    const candidateIds = new Set<string>()
+    for (const token of tokens) {
+      // Tìm kiếm chính xác và tiền tố token
+      for (const [idxToken, ids] of this.invertedIndex.entries()) {
+        if (idxToken.includes(token) || token.includes(idxToken) || levenshtein(token, idxToken, 1) <= 1) {
+          for (const id of ids) candidateIds.add(id)
+        }
+      }
+    }
+
+    const hits: SearchHit[] = []
+    const customerName = (id: string) => this.customers.find((c) => c.id === id)?.shortName ?? ''
+
+    for (const fullId of candidateIds) {
+      if (fullId.startsWith('sh_')) {
+        const sId = fullId.replace('sh_', '')
+        const s = this.shipmentMap.get(sId)
+        if (!s) continue
+        const fields: [SearchScope, string][] = [
+          ['job', s.jobNo],
+          ['bill', s.blNo],
+          ['customer', `${customerName(s.customerId)}`],
+        ]
+        for (const [field, value] of fields) {
+          if (scope !== 'all' && scope !== field) continue
+          const m = matchText(tokens, value)
+          if (m.score) {
+            hits.push({
+              id: `sh_${s.id}`,
+              kind: 'shipment',
+              href: `/shipments/${s.id}`,
+              title: s.jobNo,
+              subtitle: `B/L ${s.blNo} · ${customerName(s.customerId)}`,
+              matchedIn: field,
+              score: m.score + 2,
+            })
+            break
+          }
+        }
+      } else if (fullId.startsWith('doc_')) {
+        const dId = fullId.replace('doc_', '')
+        const d = this.docMap.get(dId)
+        if (!d) continue
+        const s = this.shipmentMap.get(d.shipmentId)
+        const jobNo = s?.jobNo || ''
+        const fields: [SearchScope, string][] = [
+          ['job', `${jobNo} ${d.fileName}`],
+          ['bill', s?.blNo || ''],
+          ['customer', customerName(d.customerId)],
+          ['content', d.ocrText],
+        ]
+        for (const [field, value] of fields) {
+          if (scope !== 'all' && scope !== field) continue
+          const source = field === 'content' ? d.ocrText : `${d.title} ${value}`
+          const m = matchText(tokens, source)
+          if (m.score) {
+            hits.push({
+              id: d.id,
+              kind: 'document',
+              href: `/documents/${d.id}`,
+              title: d.title,
+              subtitle: `${jobNo} · ${customerName(d.customerId)}`,
+              snippet: field === 'content' && m.firstIndex >= 0 ? snippet(source, m.firstIndex, m.length) : undefined,
+              matchedIn: field,
+              score: m.score,
+            })
+            break
+          }
+        }
+      }
+    }
+
+    return hits.sort((a, b) => b.score - a.score).slice(0, 24)
+  }
+}
+

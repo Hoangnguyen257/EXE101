@@ -20,6 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { toast } from 'sonner'
 import { ROLE_LABEL } from '@/lib/labels'
 import { useApp } from './app-provider'
 import { SyncBadge } from './status-badges'
@@ -28,6 +29,17 @@ export function AppHeader() {
   const { currentUser, openSearch, openUpload, startTour, sync } = useApp()
   const { theme, setTheme } = useTheme()
   const router = useRouter()
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+      toast.success('Đã đăng xuất an toàn khỏi hệ thống.')
+      router.push('/login')
+      router.refresh()
+    } catch {
+      router.push('/login')
+    }
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/90 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:px-4">
@@ -102,7 +114,7 @@ export function AppHeader() {
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem variant="destructive" onClick={() => router.push('/login')}>
+              <DropdownMenuItem variant="destructive" onClick={handleLogout}>
                 <LogOutIcon />
                 Đăng xuất
               </DropdownMenuItem>

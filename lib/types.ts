@@ -109,6 +109,7 @@ export interface Shipment {
   jobNo: string
   blNo: string
   customerId: string
+  departmentId?: string | null
   mode: 'sea' | 'air' | 'road'
   origin: string
   destination: string
@@ -137,6 +138,7 @@ export interface DocumentLock {
 export interface DocumentFile {
   id: string
   orgId: string
+  departmentId?: string | null
   shipmentId: string
   customerId: string
   type: DocType

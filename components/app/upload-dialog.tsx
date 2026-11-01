@@ -89,14 +89,23 @@ export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipmen
   const [defaultShipment, setDefaultShipment] = useState(preset?.shipmentId ?? '')
 
   const shipmentItems = shipments.map((s) => ({ value: s.id, label: `${s.jobNo} · ${s.customerName}` }))
+  const rawFilesRef = useRef<Map<string, File>>(new Map())
 
-  const addFiles = (list: { name: string; size: number }[]) => {
+  const addFiles = (list: (File | { name: string; size: number })[]) => {
     setFiles((prev) => [
       ...prev,
       ...list.map((f, i) => {
+        const id = `${Date.now()}_${i}_${f.name}`
+        if ('slice' in f && typeof (f as any).slice === 'function') {
+          rawFilesRef.current.set(id, f as File)
+        } else {
+          const blob = new Blob([`TML LOGISTICS DOCUMENT\nFile: ${f.name}\nSize: ${f.size}`], { type: 'application/pdf' })
+          const mockFile = new File([blob], f.name, { type: 'application/pdf' })
+          rawFilesRef.current.set(id, mockFile)
+        }
         const suggestion = preset?.docType && list.length === 1 ? { type: preset.docType, confidence: 100 } : suggestDocType(f.name)
         return {
-          id: `${Date.now()}_${i}_${f.name}`,
+          id,
           name: f.name,
           sizeKb: Math.max(1, Math.round(f.size / 1024)),
           type: suggestion.type,
@@ -126,25 +135,56 @@ export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipmen
 
   const unassigned = files.filter((f) => !f.shipmentId).length
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     setUploading(true)
-    const timer = window.setInterval(() => {
-      setFiles((prev) => {
-        const next = prev.map((f) => ({ ...f, progress: Math.min(100, f.progress + 12 + Math.random() * 22) }))
-        if (next.every((f) => f.progress >= 100)) {
-          window.clearInterval(timer)
-          window.setTimeout(() => {
-            setUploading(false)
-            onUploaded()
-            toast.success(`Đã tải lên ${next.length} chứng từ`, {
-              description: 'OCR đang trích xuất nội dung — có thể tìm kiếm sau ít giây.',
-            })
-            onOpenChange(false)
-          }, 350)
+    let uploadSuccessCount = 0
+
+    const byShipment = new Map<string, PendingFile[]>()
+    for (const f of files) {
+      if (!f.shipmentId) continue
+      const list = byShipment.get(f.shipmentId) ?? []
+      list.push(f)
+      byShipment.set(f.shipmentId, list)
+    }
+
+    try {
+      for (const [sId, group] of byShipment.entries()) {
+        const formData = new FormData()
+        formData.set('shipmentId', sId)
+        formData.set('docDate', docDate)
+
+        for (const item of group) {
+          formData.set('docType', item.type)
+          if (item.customTypeName) formData.set('customTypeName', item.customTypeName)
+          const realFile = rawFilesRef.current.get(item.id)
+          if (realFile) {
+            formData.append('files', realFile)
+          }
         }
-        return next
+
+        const res = await fetch('/api/documents/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (res.ok) {
+          uploadSuccessCount += group.length
+          setFiles((prev) =>
+            prev.map((f) => (group.some((g) => g.id === f.id) ? { ...f, progress: 100 } : f))
+          )
+        }
+      }
+
+      setUploading(false)
+      onUploaded()
+      toast.success(`Đã tải lên ${uploadSuccessCount} chứng từ thành công!`, {
+        description: 'Tài liệu đã được lưu trữ trong kho dữ liệu và cập nhật hồ sơ lô hàng.',
       })
-    }, 220)
+      onOpenChange(false)
+    } catch {
+      setUploading(false)
+      toast.error('Có lỗi xảy ra khi tải tài liệu lên máy chủ.')
+    }
   }
 
   return (

@@ -58,42 +58,79 @@ function ShareDialogBody({ doc }: { doc: Pick<DocumentFile, 'id' | 'title' | 'fi
   const [withPassword, setWithPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [allowDownload, setAllowDownload] = useState(true)
-  const [links, setLinks] = useState<ShareLink[]>(() => seedLinks(doc.id))
+  const [links, setLinks] = useState<ShareLink[]>([])
   const [copied, setCopied] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const origin = typeof window === 'undefined' ? 'https://docs.tml.vn' : window.location.origin
+  const origin = typeof window === 'undefined' ? '' : window.location.origin
   const linkUrl = (token: string) => `${origin}/s/${token}`
 
-  const create = () => {
-    const link: ShareLink = {
-      id: `sl_${Date.now()}`,
-      documentId: doc.id,
-      token: randomToken(),
-      expiresAt: new Date(Date.now() + Number(expiry) * 86400000).toISOString(),
-      hasPassword: withPassword,
-      createdBy: 'u2',
-      createdAt: new Date().toISOString(),
-      views: 0,
+  const loadShares = async () => {
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/share`)
+      if (res.ok) {
+        const json = await res.json()
+        setLinks(json.shares ?? [])
+      }
+    } catch {
+      // Fallback
     }
-    setLinks((l) => [link, ...l])
-    copy(link)
-    setPassword('')
+  }
+
+  useState(() => {
+    loadShares()
+  })
+
+  const create = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expiryDays: Number(expiry),
+          password: withPassword ? password : null,
+          allowDownload,
+        }),
+      })
+
+      if (res.ok) {
+        const json = await res.json()
+        setLinks((prev) => [json.share, ...prev])
+        copy(json.share)
+        setPassword('')
+        setWithPassword(false)
+        toast.success('Đã tạo liên kết chia sẻ bảo mật!')
+      } else {
+        const err = await res.json()
+        toast.error('Lỗi tạo liên kết', { description: err.error })
+      }
+    } catch {
+      toast.error('Lỗi kết nối máy chủ.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const copy = async (link: ShareLink) => {
     try {
       await navigator.clipboard.writeText(linkUrl(link.token))
     } catch {
-      // Clipboard can be blocked inside iframes; the link stays visible for manual copy.
+      // Clipboard can be blocked inside iframes
     }
     setCopied(link.id)
     toast.success('Đã sao chép liên kết', { description: `Hết hạn lúc ${formatDateTime(link.expiresAt)}` })
     window.setTimeout(() => setCopied(null), 1600)
   }
 
-  const revoke = (id: string) => {
-    setLinks((l) => l.filter((x) => x.id !== id))
-    toast('Đã thu hồi liên kết', { description: 'Người nhận sẽ không thể truy cập nữa.' })
+  const revoke = async (id: string) => {
+    try {
+      await fetch(`/api/documents/${doc.id}/share?shareId=${id}`, { method: 'DELETE' })
+      setLinks((l) => l.filter((x) => x.id !== id))
+      toast('Đã thu hồi liên kết', { description: 'Người nhận sẽ không thể truy cập nữa.' })
+    } catch {
+      toast.error('Lỗi khi thu hồi liên kết.')
+    }
   }
 
   return (

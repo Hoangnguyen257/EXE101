@@ -49,7 +49,7 @@ export const ACTION_LABEL: Record<PermissionAction, string> = {
   delete: 'Xóa',
 }
 
-export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
+export const AUDIT_ACTION_LABEL: Record<string, string> = {
   view: 'Xem',
   download: 'Tải xuống',
   edit: 'Chỉnh sửa',
@@ -57,6 +57,12 @@ export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
   upload: 'Tải lên',
   share: 'Chia sẻ',
   restore: 'Khôi phục',
+  login: 'Đăng nhập',
+  logout: 'Đăng xuất',
+  approve: 'Phê duyệt',
+  create: 'Tạo mới',
+  update: 'Cập nhật',
+  share_expired_auto_revoked: 'Thu hồi link quá hạn',
 }
 
 const dateFmt = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
