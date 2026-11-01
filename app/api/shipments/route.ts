@@ -5,6 +5,8 @@ import { PermissionService } from '@/lib/auth/permission-service'
 import { validateCsrf } from '@/lib/security/csrf'
 import { getRequiredDocTypes, type ShipmentStatus } from '@/lib/types'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   const sessionUser = await getSessionUser()
   if (!sessionUser) {

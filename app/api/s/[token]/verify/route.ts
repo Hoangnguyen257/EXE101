@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { signShareAccessToken } from '@/lib/auth/jwt'
 import { checkRateLimit, recordFailedAttempt, resetRateLimit } from '@/lib/security/rate-limit'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
 

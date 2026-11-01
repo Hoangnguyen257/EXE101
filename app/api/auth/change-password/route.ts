@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser, revokeUserSessions } from '@/lib/auth/auth-service'
 import { validateCsrf } from '@/lib/security/csrf'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   const csrf = validateCsrf(req)
   if (!csrf.valid) {

@@ -4,6 +4,8 @@ import { getSessionUser } from '@/lib/auth/auth-service'
 import { search, type SearchScope } from '@/lib/search'
 import { getDocuments, getShipments, getCustomers } from '@/lib/data'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   const sessionUser = await getSessionUser()
   if (!sessionUser) {

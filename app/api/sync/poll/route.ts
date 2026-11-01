@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth/auth-service'
 import type { AuthUser } from '@/lib/auth/auth-service'
 
+export const dynamic = 'force-dynamic'
+
 async function canUserSeeEvent(user: AuthUser, ev: any): Promise<boolean> {
   if (user.role === 'ADMIN') return true
 

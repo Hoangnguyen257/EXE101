@@ -3,6 +3,8 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { verifyShareAccessToken } from '@/lib/auth/jwt'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
 

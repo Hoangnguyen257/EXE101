@@ -4,6 +4,8 @@ import { getSessionUser } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
 import { validateCsrf } from '@/lib/security/csrf'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const sessionUser = await getSessionUser()

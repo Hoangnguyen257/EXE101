@@ -19,6 +19,8 @@ import {
   validateComprehensiveUpload,
 } from '@/lib/storage/document-storage'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   const csrf = validateCsrf(req)
   if (!csrf.valid) {

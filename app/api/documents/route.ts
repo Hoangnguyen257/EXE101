@@ -6,6 +6,8 @@ import { validateCsrf } from '@/lib/security/csrf'
 import { DOC_TYPE_LABEL } from '@/lib/labels'
 import type { DocType } from '@/lib/types'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   const sessionUser = await getSessionUser()
   if (!sessionUser) {

@@ -4,6 +4,8 @@ import { getSessionUser } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
 import { validateCsrf } from '@/lib/security/csrf'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const user = await getSessionUser()
   if (!user) {

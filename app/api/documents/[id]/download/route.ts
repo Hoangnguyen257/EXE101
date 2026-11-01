@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
 
+export const dynamic = 'force-dynamic'
+
 const VAULT_DIR = path.resolve(process.cwd(), 'storage_vault')
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -3,6 +3,8 @@ import fs from 'fs'
 import path from 'path'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 const VAULT_DIR = path.resolve(process.cwd(), 'storage_vault')
 
 export async function GET() {

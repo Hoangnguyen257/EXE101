@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "test": "tsx tests/enterprise-system.test.ts && tsx tests/security-audit-refactor.test.ts && tsx tests/business-integration.test.ts && tsx tests/task10-comprehensive-acceptance.test.ts && tsx tests/task12-security-verification.test.ts && tsx tests/task13-hardening.test.ts && tsx tests/task14-final-validation.test.ts",
     "test:security": "tsx tests/security-audit-refactor.test.ts",

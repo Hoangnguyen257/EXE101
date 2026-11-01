@@ -6,6 +6,8 @@ import { getSessionUser } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
 import { validateCsrf } from '@/lib/security/csrf'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Tạo token ngẫu nhiên bảo mật cao (192-bit cryptographic entropy)
  */

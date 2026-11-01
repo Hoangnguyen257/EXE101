@@ -5,6 +5,8 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { verifyShareAccessToken } from '@/lib/auth/jwt'
 
+export const dynamic = 'force-dynamic'
+
 const VAULT_DIR = path.resolve(process.cwd(), 'storage_vault')
 
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {

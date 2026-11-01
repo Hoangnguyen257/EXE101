@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { loginHardened, UNIFIED_AUTH_ERROR_MESSAGE } from '@/lib/auth/auth-service'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()

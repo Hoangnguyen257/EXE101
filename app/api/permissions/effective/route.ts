@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   const sessionUser = await getSessionUser()
   if (!sessionUser) {
