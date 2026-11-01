@@ -50,8 +50,7 @@ export default function LoginPage() {
       }
 
       toast.success('Đăng nhập thành công', { description: 'Chào mừng bạn quay trở lại hệ thống TML.' })
-      router.push('/dashboard')
-      router.refresh()
+      window.location.href = '/dashboard'
     } catch {
       setErrorMessage('Không thể kết nối đến máy chủ xác thực.')
       toast.error('Lỗi kết nối')

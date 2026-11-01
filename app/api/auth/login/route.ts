@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { loginHardened, UNIFIED_AUTH_ERROR_MESSAGE } from '@/lib/auth/auth-service'
+import { loginHardened, UNIFIED_AUTH_ERROR_MESSAGE, SESSION_COOKIE_NAME } from '@/lib/auth/auth-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +27,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: UNIFIED_AUTH_ERROR_MESSAGE }, { status: 401 })
     }
 
-    return NextResponse.json({ success: true, message: 'Đăng nhập thành công.' })
+    const response = NextResponse.json({ success: true, message: 'Đăng nhập thành công.' })
+
+    // Đảm bảo Set-Cookie header được ghi nhận trực tiếp trên HTTP Response
+    if (result.token) {
+      response.cookies.set(SESSION_COOKIE_NAME, result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60, // 7 ngày
+      })
+    }
+
+    return response
   } catch (error: any) {
     console.error('API Login Error:', error)
     return NextResponse.json(
@@ -39,4 +52,5 @@ export async function POST(req: Request) {
     )
   }
 }
+
 
