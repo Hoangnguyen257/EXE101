@@ -8,13 +8,25 @@
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import os from 'os'
 import { prisma } from '../prisma'
 
-export const VAULT_DIR = path.resolve(process.cwd(), 'storage_vault')
+const isServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT ||
+  process.env.VERCEL_ENV
+)
+
+export const VAULT_DIR = isServerless
+  ? path.join(os.tmpdir(), 'storage_vault')
+  : path.resolve(process.cwd(), 'storage_vault')
 
 // Khởi tạo thư mục vault nếu chưa tồn tại
 if (!fs.existsSync(VAULT_DIR)) {
-  fs.mkdirSync(VAULT_DIR, { recursive: true })
+  try {
+    fs.mkdirSync(VAULT_DIR, { recursive: true })
+  } catch {}
 }
 
 export const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png']

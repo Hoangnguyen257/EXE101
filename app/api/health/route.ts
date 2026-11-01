@@ -2,10 +2,9 @@ import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import { prisma } from '@/lib/prisma'
+import { VAULT_DIR } from '@/lib/storage/document-storage'
 
 export const dynamic = 'force-dynamic'
-
-const VAULT_DIR = path.resolve(process.cwd(), 'storage_vault')
 
 export async function GET() {
   const startTime = Date.now()
