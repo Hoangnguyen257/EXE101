@@ -42,8 +42,9 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setErrorMessage(data.error || 'Đăng nhập thất bại.')
-        toast.error('Đăng nhập không thành công', { description: data.error })
+        const desc = data.detail ? `${data.error} (${data.detail})` : (data.error || 'Đăng nhập thất bại.')
+        setErrorMessage(desc)
+        toast.error('Đăng nhập không thành công', { description: desc })
         setLoading(false)
         return
       }

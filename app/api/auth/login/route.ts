@@ -30,7 +30,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, message: 'Đăng nhập thành công.' })
   } catch (error: any) {
     console.error('API Login Error:', error)
-    return NextResponse.json({ error: 'Đã xảy ra lỗi máy chủ nội bộ.' }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: 'Đã xảy ra lỗi máy chủ nội bộ.',
+        detail: process.env.NODE_ENV !== 'production' || process.env.VERCEL ? error?.message : undefined,
+      },
+      { status: 500 }
+    )
   }
 }
 

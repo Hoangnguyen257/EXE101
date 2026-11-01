@@ -9,6 +9,10 @@ const nextConfig = {
   experimental: {
     agentUpgrade: 'security',
   },
+  outputFileTracingIncludes: {
+    '/**': ['./prisma/dev.db', './prisma/schema.prisma'],
+  },
 }
 
 export default nextConfig
+
