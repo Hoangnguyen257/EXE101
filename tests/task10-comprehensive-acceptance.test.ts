@@ -118,47 +118,38 @@ async function runTask10Validation() {
   // Unlock for remaining tests
   await prisma.user.update({ where: { id: staffAuth.id }, data: { failedAttempts: 0, lockedUntil: null } })
 
-  // SEC-06 & SEC-08: Department Isolation on Document Resource Access
-  let expDoc = await prisma.document.findFirst({
-    where: { departmentId: expDept.id, isDeleted: false },
+  // SEC-06 & SEC-08: Department Isolation on Document Resource Access (Luôn tạo tài liệu EXP độc lập không có Staff tham gia)
+  const cust = await prisma.customer.findFirst({ where: { orgId: adminAuth.orgId } })
+  const createdExpShipment = await prisma.shipment.create({
+    data: {
+      orgId: adminAuth.orgId,
+      jobNo: `JOB-EXP-SEC-${Date.now()}`,
+      blNo: 'BL-EXP-01',
+      customerId: cust!.id,
+      departmentId: expDept.id,
+      mode: 'sea',
+      origin: 'CAT LAI',
+      destination: 'BUSAN',
+      etd: '2026-11-20',
+      eta: '2026-11-28',
+      ownerId: adminAuth.id,
+    },
   })
-  let createdExpDoc = false
-  let createdExpShipment: any = null
-
-  if (!expDoc) {
-    const cust = await prisma.customer.findFirst({ where: { orgId: adminAuth.orgId } })
-    createdExpShipment = await prisma.shipment.create({
-      data: {
-        orgId: adminAuth.orgId,
-        jobNo: `JOB-EXP-SEC-${Date.now()}`,
-        blNo: 'BL-EXP-01',
-        customerId: cust!.id,
-        departmentId: expDept.id,
-        mode: 'sea',
-        origin: 'CAT LAI',
-        destination: 'BUSAN',
-        etd: '2026-11-20',
-        eta: '2026-11-28',
-        ownerId: adminAuth.id,
-      },
-    })
-    expDoc = await prisma.document.create({
-      data: {
-        orgId: adminAuth.orgId,
-        departmentId: expDept.id,
-        shipmentId: createdExpShipment.id,
-        customerId: cust!.id,
-        type: 'BL',
-        title: 'Vận đơn xuất khẩu EXP 01',
-        fileName: 'exp-bl.pdf',
-        storageKey: 'vault/exp-bl.pdf',
-        docDate: '2026-11-01',
-        createdBy: adminAuth.id,
-        updatedBy: adminAuth.id,
-      },
-    })
-    createdExpDoc = true
-  }
+  const expDoc = await prisma.document.create({
+    data: {
+      orgId: adminAuth.orgId,
+      departmentId: expDept.id,
+      shipmentId: createdExpShipment.id,
+      customerId: cust!.id,
+      type: 'BL',
+      title: 'Vận đơn xuất khẩu EXP 01',
+      fileName: 'exp-bl.pdf',
+      storageKey: 'vault/exp-bl.pdf',
+      docDate: '2026-11-01',
+      createdBy: adminAuth.id,
+      updatedBy: adminAuth.id,
+    },
+  })
 
   const staffAccessExpDoc = await PermissionService.check(staffAuthActive!, 'DOCUMENTS', 'VIEW', {
     id: expDoc.id,
@@ -174,12 +165,8 @@ async function runTask10Validation() {
   })
   assert(!staffDownloadExpDoc.allowed, 'Security', 'SEC-08: Nhân viên phòng DOC bị CHẶN không được tải tài liệu phòng EXP')
 
-  if (createdExpDoc && expDoc) {
-    await prisma.document.delete({ where: { id: expDoc.id } })
-    if (createdExpShipment) {
-      await prisma.shipment.delete({ where: { id: createdExpShipment.id } })
-    }
-  }
+  await prisma.document.delete({ where: { id: expDoc.id } })
+  await prisma.shipment.delete({ where: { id: createdExpShipment.id } })
 
   // SEC-11: CSRF Protection on Mutating Requests
   const mockPostCsrfValid = new Request('http://localhost:3000/api/shipments', {

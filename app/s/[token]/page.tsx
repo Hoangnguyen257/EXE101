@@ -14,7 +14,7 @@ export async function generateMetadata({
     include: { document: true },
   })
 
-  if (!share || share.isRevoked) {
+  if (!share || share.isRevoked || !share.document || share.document.isDeleted) {
     return { title: 'Tài liệu không tồn tại - TML Logistics' }
   }
 
@@ -44,7 +44,7 @@ export default async function PublicSharePage({
     },
   })
 
-  if (!share) {
+  if (!share || !share.document || share.document.isDeleted) {
     notFound()
   }
 

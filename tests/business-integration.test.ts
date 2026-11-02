@@ -326,11 +326,25 @@ async function runBusinessIntegrationTests() {
     },
   })
 
+  const expShipment = await prisma.shipment.create({
+    data: {
+      orgId: adminUser.orgId,
+      jobNo: `TML-EXP-TEST-${Date.now()}`,
+      customerId: customer.id,
+      departmentId: expDept.id,
+      mode: 'air',
+      origin: 'NOI BAI',
+      destination: 'FRANKFURT',
+      status: 'booking',
+      ownerId: adminUser.id,
+    },
+  })
+
   const expDocExp = await prisma.document.create({
     data: {
       orgId: adminUser.orgId,
       departmentId: expDept.id,
-      shipmentId: newShipment.id,
+      shipmentId: expShipment.id,
       customerId: customer.id,
       title: 'Tài liệu EXP sắp hết hạn',
       fileName: 'exp-exp.pdf',
@@ -385,7 +399,7 @@ async function runBusinessIntegrationTests() {
   await prisma.document.deleteMany({
     where: { id: { in: [testDoc.id, expDocDoc.id, expDocExp.id] } },
   })
-  await prisma.shipment.delete({ where: { id: newShipment.id } })
+  await prisma.shipment.deleteMany({ where: { id: { in: [newShipment.id, expShipment.id] } } })
 
   console.log('\n' + '='.repeat(80))
   console.log('KẾT QUẢ KIỂM THỬ NGHIỆP VỤ & TÍCH HỢP TML LOGISTICS:')

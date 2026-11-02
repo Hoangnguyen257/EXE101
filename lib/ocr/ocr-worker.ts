@@ -11,7 +11,15 @@
  */
 
 import { prisma } from '../prisma'
-import { extractTextFromBuffer, extractLogisticsFields, detectPdfType, type ExtractedLogisticsData } from './ocr-extractor'
+import {
+  extractTextFromBuffer,
+  extractTextFromBufferAsync,
+  extractTextFromPdf,
+  recognizeImageWithTesseract,
+  extractLogisticsFields,
+  detectPdfType,
+  type ExtractedLogisticsData,
+} from './ocr-extractor'
 
 export type OCRJobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
 
@@ -145,22 +153,12 @@ export class OCRWorkerService {
     job.attempts += 1
 
     try {
-      // 1. Kiểm tra fast-path: Nếu file có Text Layer
-      const ext = job.fileName.toLowerCase().slice(job.fileName.lastIndexOf('.'))
-      let rawText = ''
+      // 1. Phân luồng OCR thật sự:
+      // - PDF có Text Layer: Trích xuất qua pdf-parse
+      // - File ảnh (PNG/JPG/BMP): Nhận dạng chữ thật sự qua Tesseract.js Worker
+      let rawText = await extractTextFromBufferAsync(fileBuffer, job.fileName)
 
-      if (ext === '.pdf') {
-        const analysis = detectPdfType(fileBuffer)
-        if (analysis.hasTextLayer) {
-          rawText = extractTextFromBuffer(fileBuffer, job.fileName)
-        } else {
-          // Scanned PDF không có text layer
-          // Trong môi trường hoàn chỉnh, headless worker sẽ rasterize và chuyển sang Tesseract Node Worker
-          rawText = `[SCAN_OCR_PROCESSED] Chứng từ scan dạng ảnh: ${job.fileName}\n` +
-                    extractTextFromBuffer(fileBuffer, job.fileName)
-        }
-      } else {
-        // File ảnh (JPG/PNG): Trích xuất text
+      if (!rawText || rawText.trim().length === 0) {
         rawText = extractTextFromBuffer(fileBuffer, job.fileName)
       }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { FileTextIcon, SearchIcon, Trash2Icon, PencilIcon, ExternalLinkIcon, EyeIcon } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DOC_TYPE_SHORT, formatDate } from '@/lib/labels'
 import { normalize } from '@/lib/search'
-import { listDocuments, deleteDocument, type SavedDocument } from '@/lib/storage'
 import type { ShipmentWithProgress } from '@/lib/data'
 import type { Customer, DocType, DocumentFile } from '@/lib/types'
 import { REQUIRED_DOC_TYPES } from '@/lib/types'
@@ -26,7 +25,7 @@ interface UnifiedDoc {
   docDate: string
   pagesCount: number
   ocrText: string
-  source: 'database' | 'indexeddb'
+  source: 'database'
 }
 
 export function DocumentsListClient({
@@ -38,26 +37,12 @@ export function DocumentsListClient({
   customers: Customer[]
   initialDocuments?: DocumentFile[]
 }) {
-  const [idbDocs, setIdbDocs] = useState<SavedDocument[]>([])
   const [q, setQ] = useState('')
   const [typeFilter, setTypeFilter] = useState<DocType | 'all'>('all')
 
-  const loadIdb = async () => {
-    try {
-      const list = await listDocuments()
-      setIdbDocs(list)
-    } catch {
-      // IndexedDB might not be available in SSR
-    }
-  }
-
-  useEffect(() => {
-    loadIdb()
-  }, [])
-
-  // Combine database documents with local scanned ones
+  // Danh sách chính thức chỉ lấy từ cơ sở dữ liệu máy chủ (database)
   const allDocs = useMemo<UnifiedDoc[]>(() => {
-    const list: UnifiedDoc[] = initialDocuments.map((d) => ({
+    return initialDocuments.map((d) => ({
       id: d.id,
       title: d.title,
       type: d.type,
@@ -69,26 +54,7 @@ export function DocumentsListClient({
       ocrText: d.ocrText,
       source: 'database',
     }))
-
-    for (const d of idbDocs) {
-      if (!list.some((item) => item.id === d.id)) {
-        list.push({
-          id: d.id,
-          title: d.title,
-          type: d.type,
-          customTypeName: d.customTypeName,
-          shipmentId: d.shipmentId,
-          customerId: d.customerId,
-          docDate: d.docDate,
-          pagesCount: d.pages.length,
-          ocrText: d.pages.map((p) => p.ocrText).join(' '),
-          source: 'indexeddb',
-        })
-      }
-    }
-
-    return list
-  }, [initialDocuments, idbDocs])
+  }, [initialDocuments])
 
   const filtered = useMemo(() => {
     const nq = normalize(q)
@@ -104,19 +70,13 @@ export function DocumentsListClient({
     })
   }, [allDocs, q, typeFilter, shipments, customers])
 
-  const handleDelete = async (id: string, source: 'database' | 'indexeddb') => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc chắn muốn xóa chứng từ này?')) return
-    if (source === 'indexeddb') {
-      await deleteDocument(id)
-      loadIdb()
-    } else {
-      // Soft delete from database via API
-      try {
-        await fetch(`/api/documents/${id}/delete`, { method: 'POST' })
-        window.location.reload()
-      } catch {
-        // Fallback
-      }
+    try {
+      await fetch(`/api/documents/${id}/delete`, { method: 'POST' })
+      window.location.reload()
+    } catch {
+      // Fallback
     }
   }
 
@@ -235,7 +195,7 @@ export function DocumentsListClient({
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(doc.id, doc.source)}
+                        onClick={() => handleDelete(doc.id)}
                         title="Xóa chứng từ"
                       >
                         <Trash2Icon className="size-4 text-destructive" />

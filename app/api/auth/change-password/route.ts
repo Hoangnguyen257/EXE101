@@ -51,8 +51,17 @@ export async function POST(req: Request) {
       },
     })
 
-    // Thu hồi các phiên đăng nhập khác của người dùng để bảo mật (B2)
-    await revokeUserSessions(user.id)
+    // Thu hồi các phiên đăng nhập khác của người dùng để bảo mật (giữ lại phiên hiện tại)
+    await prisma.session.updateMany({
+      where: {
+        userId: user.id,
+        id: sessionUser.sessionId ? { not: sessionUser.sessionId } : undefined,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    })
 
     // Audit Log
     await prisma.auditLog.create({

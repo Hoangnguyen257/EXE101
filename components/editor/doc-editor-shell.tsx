@@ -36,6 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { SavedDocument, ScannedPage } from '@/lib/storage'
 import { SaveDocDialog } from '@/components/editor/save-doc-dialog'
@@ -153,7 +154,17 @@ function HistoryDrawer({
 // ---------------------------------------------------------------------------
 // Main shell
 // ---------------------------------------------------------------------------
-export function DocEditorShell({ docId }: { docId: string }) {
+export function DocEditorShell({
+  docId,
+  initialTitle,
+  initialHtml = '',
+  versions = [],
+}: {
+  docId: string
+  initialTitle?: string
+  initialHtml?: string
+  versions?: { versionNumber: number; fileName: string; uploadedAt: string; changeNote: string }[]
+}) {
   const [pages, setPages] = useState<{ id: string } & ScannedPage[]>()
   const [previewPage, setPreviewPage] = useState<ScannedPage | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
@@ -161,21 +172,29 @@ export function DocEditorShell({ docId }: { docId: string }) {
   const [showHistory, setShowHistory] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [saving, setSaving] = useState(false)
   const [history, setHistory] = useState<SavedDocument['history']>([])
   const [ocrPages, setOcrPages] = useState<(ScannedPage & { id: string })[]>([])
+  const [versionList, setVersionList] = useState(versions)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load OCR results from session
+  // Load OCR results from session if creating new
   useEffect(() => {
-    const raw = sessionStorage.getItem('ocr_results')
-    if (raw) {
-      const parsed: (ScannedPage & { id: string })[] = JSON.parse(raw)
-      setOcrPages(parsed)
-      if (parsed[0]) setPreviewPage(parsed[0])
+    if (docId === 'new') {
+      const raw = sessionStorage.getItem('ocr_results')
+      if (raw) {
+        const parsed: (ScannedPage & { id: string })[] = JSON.parse(raw)
+        setOcrPages(parsed)
+        if (parsed[0]) setPreviewPage(parsed[0])
+      }
     }
-  }, [])
+  }, [docId])
 
-  const initialHtml = ocrPages.map((p) => `<p>${p.ocrText.replace(/\n/g, '</p><p>')}</p>`).join('<hr/>')
+  const defaultContent =
+    initialHtml ||
+    (ocrPages.length > 0
+      ? ocrPages.map((p) => `<p>${p.ocrText.replace(/\n/g, '</p><p>')}</p>`).join('<hr/>')
+      : '<p>Bắt đầu soạn thảo...</p>')
 
   const editor = useEditor({
     extensions: [
@@ -187,7 +206,7 @@ export function DocEditorShell({ docId }: { docId: string }) {
       TableHeader,
       TableCell,
     ],
-    content: initialHtml || '<p>Bắt đầu soạn thảo...</p>',
+    content: defaultContent,
     onUpdate: () => {
       // Autosave debounce
       if (autosaveRef.current) clearTimeout(autosaveRef.current)
@@ -197,10 +216,10 @@ export function DocEditorShell({ docId }: { docId: string }) {
 
   // Re-set content when OCR data arrives
   useEffect(() => {
-    if (!editor || ocrPages.length === 0) return
+    if (!editor || docId !== 'new' || ocrPages.length === 0) return
     const html = ocrPages.map((p) => `<p>${p.ocrText.replace(/\n/g, '</p><p>')}</p>`).join('<hr/>')
     editor.commands.setContent(html)
-  }, [editor, ocrPages])
+  }, [editor, ocrPages, docId])
 
   const autosave = useCallback(() => {
     if (!editor) return
@@ -211,6 +230,57 @@ export function DocEditorShell({ docId }: { docId: string }) {
       ...h.slice(0, 19),
     ])
   }, [editor])
+
+  const handleSaveDoc = async () => {
+    if (!editor) return
+    if (docId === 'new') {
+      setShowSaveDialog(true)
+      return
+    }
+
+    // Nếu sửa tài liệu cũ: gọi API PUT /api/documents/[id] để lưu và tạo DocumentVersion mới
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/documents/${docId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-protection': '1',
+        },
+        body: JSON.stringify({
+          editedHtml: editor.getHTML(),
+          changeNote: 'Cập nhật nội dung qua Web Editor',
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error('Lưu chứng từ thất bại', { description: data.error || 'Đã xảy ra lỗi máy chủ.' })
+        setSaving(false)
+        return
+      }
+
+      toast.success('Lưu phiên bản mới thành công', {
+        description: `Đã tạo phiên bản v${data.version?.versionNumber || 2} và lưu trữ trên hệ thống.`,
+      })
+      setSavedAt(new Date())
+      if (data.version) {
+        setVersionList((prev) => [
+          {
+            versionNumber: data.version.versionNumber,
+            fileName: data.version.fileName,
+            uploadedAt: data.version.uploadedAt || new Date().toISOString(),
+            changeNote: data.version.changeNote || '',
+          },
+          ...prev,
+        ])
+      }
+    } catch {
+      toast.error('Lỗi kết nối', { description: 'Không thể kết nối đến máy chủ.' })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const exportDocx = async () => {
     if (!editor) return
@@ -289,7 +359,10 @@ export function DocEditorShell({ docId }: { docId: string }) {
           <Divider />
           <Button size="sm" variant="outline" onClick={exportDocx}><DownloadIcon className="mr-1 size-3.5" />Word</Button>
           <Button size="sm" variant="outline" onClick={exportPdf}><DownloadIcon className="mr-1 size-3.5" />PDF</Button>
-          <Button size="sm" onClick={() => setShowSaveDialog(true)}><SaveIcon className="mr-1 size-3.5" />Lưu chứng từ</Button>
+          <Button size="sm" onClick={handleSaveDoc} disabled={saving}>
+            <SaveIcon className="mr-1 size-3.5" />
+            {saving ? 'Đang lưu...' : docId === 'new' ? 'Lưu chứng từ' : 'Lưu phiên bản mới'}
+          </Button>
         </div>
       </div>
 

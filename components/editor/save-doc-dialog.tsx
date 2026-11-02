@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
+import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +12,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { useAppContext } from '@/components/app/app-provider'
 import { DOC_TYPE_LABEL } from '@/lib/labels'
 import { REQUIRED_DOC_TYPES, type DocType } from '@/lib/types'
-import { saveDocument, newDocId, type ScannedPage } from '@/lib/storage'
+import { saveDocument, deleteDocument, newDocId, type ScannedPage } from '@/lib/storage'
 import { normalize } from '@/lib/search'
 
 export function SaveDocDialog({
@@ -48,29 +49,85 @@ export function SaveDocDialog({
     if (!shipmentId || !customerId || !type || !docDate) return
     if (type === 'OTHER' && !customTypeName.trim()) return
     setSaving(true)
-    const id = newDocId()
+    const tempId = newDocId()
     const shipment = shipments.find((s) => s.id === shipmentId)!
     const displayLabel = type === 'OTHER' && customTypeName.trim() ? customTypeName.trim() : DOC_TYPE_LABEL[type]
-    await saveDocument({
-      id,
-      shipmentId,
-      customerId,
-      type,
-      customTypeName: type === 'OTHER' ? customTypeName.trim() : undefined,
-      title: `${displayLabel} ${shipment.jobNo}`,
-      docDate,
-      archiveBoxId: archiveBoxId || undefined,
-      retentionUntil: retentionUntil || undefined,
-      pages: ocrPages.map(({ id: _, ...p }) => p),
-      editedHtml: html,
-      history: [{ at: new Date().toISOString(), html, label: 'Tạo mới' }],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      auditLog: [{ action: 'create', at: new Date().toISOString() }],
-    })
-    setSaving(false)
-    onClose()
-    router.push('/documents')
+    const title = `${displayLabel} ${shipment.jobNo}`
+    const rawOcrText = ocrPages.map((p) => p.ocrText).join('\n\n')
+
+    // 1. Lưu bản nháp tạm vào IndexedDB để bảo đảm an toàn dữ liệu máy khách
+    try {
+      await saveDocument({
+        id: tempId,
+        shipmentId,
+        customerId,
+        type,
+        customTypeName: type === 'OTHER' ? customTypeName.trim() : undefined,
+        title,
+        docDate,
+        archiveBoxId: archiveBoxId || undefined,
+        retentionUntil: retentionUntil || undefined,
+        pages: ocrPages.map(({ id: _, ...p }) => p),
+        editedHtml: html,
+        history: [{ at: new Date().toISOString(), html, label: 'Bản nháp tạm' }],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        auditLog: [{ action: 'create', at: new Date().toISOString() }],
+      })
+    } catch {
+      // IndexedDB lỗi không chặn luồng gửi server
+    }
+
+    // 2. Gửi tài liệu + ảnh/PDF + editedHtml + OCR lên server qua API
+    try {
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-protection': '1',
+        },
+        body: JSON.stringify({
+          shipmentId,
+          customerId,
+          type,
+          customTypeName: type === 'OTHER' ? customTypeName.trim() : undefined,
+          title,
+          docDate,
+          archiveBoxId: archiveBoxId || undefined,
+          retentionUntil: retentionUntil || undefined,
+          editedHtml: html,
+          ocrText: rawOcrText,
+          pages: ocrPages.map((p) => ({ dataUrl: p.dataUrl, ocrText: p.ocrText })),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error('Lưu chứng từ thất bại', { description: data.error || 'Đã xảy ra lỗi máy chủ.' })
+        setSaving(false)
+        return
+      }
+
+      // 3. Khi server lưu thành công: Xóa bản nháp tạm trong IndexedDB
+      try {
+        await deleteDocument(tempId)
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('ocr_results')
+          sessionStorage.removeItem('scan_pages')
+        }
+      } catch {
+        // Bỏ qua lỗi xóa IDB
+      }
+
+      toast.success('Lưu chứng từ thành công', { description: 'Tài liệu đã được lưu trữ bền vững trên máy chủ.' })
+      setSaving(false)
+      onClose()
+      router.push(`/documents/${data.document.id}`)
+    } catch (err: any) {
+      toast.error('Lỗi kết nối', { description: 'Không thể kết nối đến máy chủ. Bản nháp đã được lưu tạm trên máy.' })
+      setSaving(false)
+    }
   }
 
   const qrValue = archiveBoxId ? `TML-BOX:${archiveBoxId}` : ''

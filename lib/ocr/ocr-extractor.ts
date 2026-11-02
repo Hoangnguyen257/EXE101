@@ -3,6 +3,9 @@
  * TML - Text Mining Library
  */
 
+import { PDFParse } from 'pdf-parse'
+import { createWorker } from 'tesseract.js'
+
 export interface ExtractedLogisticsData {
   jobNo?: string
   blNo?: string
@@ -138,6 +141,81 @@ export function extractLogisticsFields(rawText: string): ExtractedLogisticsData 
   result.confidenceScore = Math.min(98, Math.max(minFloor, Math.round(rawConfidence)))
 
   return result
+}
+
+/**
+ * Trích xuất văn bản từ tập tin PDF có Text Layer bằng thư viện pdf-parse thật sự
+ */
+export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+  try {
+    const parser = new PDFParse({ data: buffer })
+    const data = await parser.getText()
+    await parser.destroy()
+    return (data.text || '').replace(/-- \d+ of \d+ --/g, '').trim()
+  } catch (err) {
+    console.warn('Lỗi phân tích cú pháp PDF qua pdf-parse, chuyển sang cơ chế fallback:', err)
+    return ''
+  }
+}
+
+/**
+ * Nhận dạng ký tự quang học (OCR) thực sự cho tập tin hình ảnh sử dụng Tesseract.js Worker
+ */
+export async function recognizeImageWithTesseract(
+  imageBuffer: Buffer,
+  lang = 'vie+eng'
+): Promise<{ text: string; confidence: number }> {
+  try {
+    const worker = await createWorker(lang)
+    try {
+      const ret = await worker.recognize(imageBuffer)
+      return {
+        text: (ret.data.text || '').trim(),
+        confidence: ret.data.confidence || 0,
+      }
+    } finally {
+      await worker.terminate()
+    }
+  } catch (err) {
+    console.error('Lỗi nhận dạng Tesseract.js Worker:', err)
+    return { text: '', confidence: 0 }
+  }
+}
+
+/**
+ * Trích xuất text bất đồng bộ tối ưu (Async Real Pipeline):
+ * - PDF có text layer: Dùng pdf-parse thực sự
+ * - File ảnh (PNG/JPG/BMP): Dùng Tesseract.js OCR thật
+ * - Văn bản thuần (TXT/CSV): Đọc chuỗi UTF-8
+ */
+export async function extractTextFromBufferAsync(buffer: Buffer, fileName: string): Promise<string> {
+  const ext = fileName.toLowerCase().slice(fileName.lastIndexOf('.'))
+
+  if (ext === '.txt' || ext === '.csv') {
+    return buffer.toString('utf-8', 0, Math.min(buffer.length, 100000))
+  }
+
+  if (ext === '.pdf') {
+    const parsedText = await extractTextFromPdf(buffer)
+    if (parsedText && parsedText.length >= 10) {
+      return parsedText
+    }
+    // Nếu pdf-parse không đọc được do PDF scan ảnh hoặc định dạng synthetic trong test:
+    const fallbackText = extractTextFromBuffer(buffer, fileName)
+    if (fallbackText && fallbackText !== `Chứng từ: ${fileName}`) {
+      return fallbackText
+    }
+    return parsedText || fallbackText
+  }
+
+  if (ext === '.png' || ext === '.jpg' || ext === '.jpeg' || ext === '.bmp') {
+    const ocrResult = await recognizeImageWithTesseract(buffer)
+    if (ocrResult.text && ocrResult.text.length > 5) {
+      return ocrResult.text
+    }
+  }
+
+  return extractTextFromBuffer(buffer, fileName)
 }
 
 /**

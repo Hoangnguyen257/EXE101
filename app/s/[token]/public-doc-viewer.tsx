@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   DownloadIcon,
+  EyeIcon,
   FileStackIcon,
   FileTextIcon,
   LockIcon,
@@ -14,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatDateTime } from '@/lib/labels'
+import { cn } from '@/lib/utils'
 
 interface PublicDocViewerProps {
   token: string
@@ -47,6 +49,10 @@ export function PublicDocViewer({ token, share, document: doc }: PublicDocViewer
   const [verifying, setVerifying] = useState(false)
   const [displayedOcr, setDisplayedOcr] = useState(doc.ocrText)
   const [loadingContent, setLoadingContent] = useState(false)
+  const [viewMode, setViewMode] = useState<'preview' | 'ocr'>('preview')
+
+  const isPdf = doc.fileName.toLowerCase().endsWith('.pdf')
+  const isImage = /\.(png|jpe?g|webp|bmp|gif)$/i.test(doc.fileName)
 
   // Tải nội dung OCR bảo mật sau khi đã mở khóa
   useEffect(() => {
@@ -213,24 +219,88 @@ export function PublicDocViewer({ token, share, document: doc }: PublicDocViewer
               )}
             </div>
 
-            <Card className="overflow-hidden">
-              <CardHeader className="border-b bg-muted/40 py-3">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <FileTextIcon className="size-4" />
-                    {doc.fileName} ({doc.pages} trang)
-                  </span>
-                  <span>Liên kết có hiệu lực đến: {formatDateTime(share.expiresAt)}</span>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="min-h-[400px] rounded-lg border bg-background p-6 font-mono text-sm leading-relaxed whitespace-pre-wrap">
-                  {loadingContent
-                    ? 'Đang tải nội dung văn bản chứng từ...'
-                    : (displayedOcr || 'Nội dung chứng từ điện tử đã được ghi nhận trong kho dữ liệu TML.')}
-                </div>
-              </CardContent>
-            </Card>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-1.5 rounded-lg border bg-muted/40 p-1 w-fit">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('preview')}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                    viewMode === 'preview'
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <EyeIcon className="size-3.5" />
+                  Xem tập tin gốc ({doc.fileName})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('ocr')}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                    viewMode === 'ocr'
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <FileTextIcon className="size-3.5" />
+                  Nội dung văn bản (OCR)
+                </button>
+              </div>
+
+              <Card className="overflow-hidden">
+                <CardHeader className="border-b bg-muted/40 py-3">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <FileTextIcon className="size-4" />
+                      {doc.fileName} ({doc.pages} trang)
+                    </span>
+                    <span>Liên kết có hiệu lực đến: {formatDateTime(share.expiresAt)}</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 md:p-6">
+                  {viewMode === 'preview' ? (
+                    isPdf ? (
+                      <div className="relative w-full h-[750px] rounded-lg border overflow-hidden bg-muted/10">
+                        <iframe
+                          src={`/api/s/${token}/file#toolbar=1`}
+                          title={doc.title}
+                          className="w-full h-full border-0 bg-white"
+                        />
+                      </div>
+                    ) : isImage ? (
+                      <div className="flex items-center justify-center min-h-[500px] p-4 rounded-lg border bg-muted/10">
+                        <img
+                          src={`/api/s/${token}/file`}
+                          alt={doc.title}
+                          className="max-h-[750px] max-w-full object-contain rounded-md shadow-sm border bg-white"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center min-h-[300px] p-6 text-center text-muted-foreground gap-3">
+                        <FileTextIcon className="size-12 text-muted-foreground/60" />
+                        <div>
+                          <p className="font-medium text-foreground">Tập tin định dạng {doc.fileName.split('.').pop()?.toUpperCase()}</p>
+                          <p className="text-xs">Định dạng này không hỗ trợ xem trước trực tiếp trên trình duyệt.</p>
+                        </div>
+                        {share.allowDownload && (
+                          <Button onClick={handleDownload} variant="outline" size="sm">
+                            <DownloadIcon className="mr-1.5 size-4" /> Tải về máy để xem
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  ) : (
+                    <div className="min-h-[400px] rounded-lg border bg-background p-6 font-mono text-sm leading-relaxed whitespace-pre-wrap">
+                      {loadingContent
+                        ? 'Đang tải nội dung văn bản chứng từ...'
+                        : (displayedOcr || 'Nội dung chứng từ điện tử đã được ghi nhận trong kho dữ liệu TML.')}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
       </main>

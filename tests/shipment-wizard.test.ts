@@ -485,7 +485,9 @@ async function runWizardAcceptanceTests() {
 
   // Dọn dẹp dữ liệu test
   await prisma.shipmentParticipant.deleteMany({ where: { shipmentId: draftShipment.id } })
+  await prisma.documentVersion.deleteMany({ where: { storageKey: { in: [pdfKey, pngKey] } } })
   await prisma.document.deleteMany({ where: { shipmentId: draftShipment.id } })
+  await prisma.storageObject.deleteMany({ where: { storageKey: { in: [pdfKey, pngKey] } } })
   await prisma.shipmentRequirement.deleteMany({ where: { shipmentId: draftShipment.id } })
   await prisma.shipmentGoods.deleteMany({ where: { shipmentId: draftShipment.id } })
   await prisma.shipment.delete({ where: { id: draftShipment.id } })

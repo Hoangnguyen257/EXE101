@@ -20,8 +20,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     },
   })
 
-  if (!share || share.isRevoked) {
-    return NextResponse.json({ error: 'Liên kết không tồn tại hoặc đã bị thu hồi.' }, { status: 404 })
+  if (!share || share.isRevoked || !share.document || share.document.isDeleted) {
+    return NextResponse.json({ error: 'Liên kết không tồn tại hoặc tài liệu đã bị xóa.' }, { status: 404 })
   }
 
   if (share.expiresAt < new Date()) {

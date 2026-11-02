@@ -23,3 +23,4 @@ CREATE TABLE IF NOT EXISTS "ShipmentGoods" (
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "ShipmentGoods_shipmentId_idx" ON "ShipmentGoods"("shipmentId");
+

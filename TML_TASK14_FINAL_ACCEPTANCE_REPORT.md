@@ -23,7 +23,7 @@
 | Phân hệ / Tiêu chí thẩm định | Phạm vi thẩm định thực tế | Kết quả kiểm thử | Trạng thái nghiệm thu | Tài liệu bằng chứng chi tiết |
 | :--- | :--- | :---: | :---: | :--- |
 | **TASK 14.1: PostgreSQL Runtime** | 31 Models, DDL Migration, Schema, Foreign Keys CASCADE | Cú pháp chuẩn 100% | **NOT VERIFIED (Host)**<br>*(Pending Prod DB Server)* | [Bằng chứng PostgreSQL](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_POSTGRESQL_RUNTIME_EVIDENCE.md) |
-| **TASK 14.2: Redis Cluster** | Sliding Window ZSET, Lua Script, Fallback in-memory | 100% Fallback Test PASS | **PARTIALLY VERIFIED**<br>*(Pending Prod Redis Node)* | [Bằng chứng Redis](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_REDIS_CLUSTER_EVIDENCE.md) |
+| **TASK 14.2: Rate Limiting & Safe Fallback** | In-Memory Sliding Window, Safe Fallback (Redis client tùy chọn khi có biến REDIS_URL) | 100% In-Memory Test PASS | **VERIFIED PASS (In-Memory)**<br>*(Redis vật lý: Không bắt buộc, chưa cấu hình trên host)* | lib/security/redis-rate-limit.ts |
 | **TASK 14.3: OCR Logistics Engine** | Phân định Text Layer vs Scan Raster, bóc tách B/L, Container, POL, POD, Worker | 100% Field Extracted | **VERIFIED PASS** | [Bằng chứng OCR](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_OCR_E2E_EVIDENCE.md) |
 | **TASK 14.4: Search Engine Scalability** | Đo đạc 1k, 10k, 100k docs, Inverted Index, RAM Heap, QPS, Đánh giá 1M docs | P50: 11ms - 1018ms | **VERIFIED PASS** | [Báo cáo Search](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_SEARCH_PERFORMANCE_REPORT.md) |
 | **TASK 14.5: Security Penetration** | Kiểm thử tấn công 15 lỗ hổng (SEC-P01 đến SEC-P15) | 15/15 Vectors Blocked | **VERIFIED PASS** | [Báo cáo Penetration](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_SECURITY_PENETRATION_REPORT.md) |
@@ -100,8 +100,7 @@ Quý khách hàng và Kiến trúc sư trưởng có thể tham khảo chi tiế
 
 1. [TML_TASK14_FINAL_ACCEPTANCE_REPORT.md](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_FINAL_ACCEPTANCE_REPORT.md) - Báo cáo nghiệm thu tổng thể.
 2. [TML_TASK14_POSTGRESQL_RUNTIME_EVIDENCE.md](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_POSTGRESQL_RUNTIME_EVIDENCE.md) - Thẩm tra PostgreSQL Runtime, Schema & Migration DDL.
-3. [TML_TASK14_REDIS_CLUSTER_EVIDENCE.md](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_REDIS_CLUSTER_EVIDENCE.md) - Thẩm định Rate Limiter, Lua Scripts & In-memory Safe Fallback.
-4. [TML_TASK14_OCR_E2E_EVIDENCE.md](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_OCR_E2E_EVIDENCE.md) - Bằng chứng bóc tách thực thể Logistics OCR & Worker Lifecycle.
+3. [TML_TASK14_OCR_E2E_EVIDENCE.md](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_OCR_E2E_EVIDENCE.md) - Bằng chứng bóc tách thực thể Logistics OCR & Worker Lifecycle.
 5. [TML_TASK14_SEARCH_PERFORMANCE_REPORT.md](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_SEARCH_PERFORMANCE_REPORT.md) - Báo cáo đo đạc hiệu năng tìm kiếm 1k-100k và dự phóng 1M documents.
 6. [TML_TASK14_SECURITY_PENETRATION_REPORT.md](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_SECURITY_PENETRATION_REPORT.md) - Báo cáo kiểm thử thâm nhập 15 vector tấn công an ninh mạng.
 7. [TML_TASK14_DEPLOYMENT_RUNBOOK.md](file:///c:/Users/ACER/Downloads/tml-doc-manager-development/TML_TASK14_DEPLOYMENT_RUNBOOK.md) - Sổ tay hướng dẫn triển khai, sao lưu, phục hồi & vận hành Production.

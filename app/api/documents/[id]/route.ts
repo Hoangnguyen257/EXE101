@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
 import { validateCsrf } from '@/lib/security/csrf'
+import { getStorageProvider } from '@/lib/storage/storage-provider'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +59,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       shipment: doc.shipment,
       customer: doc.customer,
       creator: doc.creator,
+      editedHtml: doc.editedHtml,
       ocrResults: doc.ocrResults.map((r) => ({
         id: r.id,
         status: r.status,
@@ -174,6 +177,143 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     })
   } catch (error: any) {
     console.error('Lỗi cập nhật chứng từ:', error)
+    return NextResponse.json({ error: 'Lỗi máy chủ khi cập nhật chứng từ.' }, { status: 500 })
+  }
+}
+
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const csrf = validateCsrf(req)
+  if (!csrf.valid) {
+    return NextResponse.json({ error: csrf.error }, { status: 403 })
+  }
+
+  const { id } = await params
+  const sessionUser = await getSessionUser(req)
+  if (!sessionUser) {
+    return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 })
+  }
+
+  const doc = await prisma.document.findUnique({
+    where: { id },
+    include: { shipment: { include: { participants: true } } },
+  })
+
+  if (!doc || doc.isDeleted) {
+    return NextResponse.json({ error: 'Chứng từ không tồn tại hoặc đã bị xóa.' }, { status: 404 })
+  }
+
+  // Kiểm tra quyền EDIT phía server
+  const perm = await PermissionService.check(sessionUser, 'DOCUMENTS', 'EDIT', {
+    id: doc.id,
+    departmentId: doc.departmentId,
+    createdBy: doc.createdBy,
+    ownerId: doc.shipment?.ownerId,
+    assignedUserIds: doc.shipment?.participants?.map((p) => p.userId),
+  })
+
+  if (!perm.allowed) {
+    return NextResponse.json(
+      { error: perm.reason || 'Bạn không có quyền chỉnh sửa chứng từ này.' },
+      { status: 403 }
+    )
+  }
+
+  try {
+    const body = await req.json()
+    const { editedHtml, changeNote, title } = body
+
+    if (editedHtml === undefined) {
+      return NextResponse.json({ error: 'Thiếu nội dung editedHtml.' }, { status: 400 })
+    }
+
+    // Lấy phiên bản lớn nhất hiện tại
+    const maxVersionAgg = await prisma.documentVersion.aggregate({
+      where: { documentId: doc.id },
+      _max: { versionNumber: true },
+    })
+    const nextVersionNumber = (maxVersionAgg._max.versionNumber || 1) + 1
+
+    // Lưu snapshot HTML phiên bản mới lên StorageProvider bền vững
+    const now = new Date()
+    const dateFolder = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+    const snapshotKey = `vault/${dateFolder}/${doc.id}_v${nextVersionNumber}.html`
+    const snapshotBuffer = Buffer.from(editedHtml, 'utf8')
+    const storage = getStorageProvider()
+    await storage.put(snapshotKey, snapshotBuffer, 'text/html')
+
+    const checksumSha256 = crypto.createHash('sha256').update(snapshotBuffer).digest('hex')
+
+    // Tạo StorageObject cho snapshot phiên bản
+    await prisma.storageObject.create({
+      data: {
+        storageKey: snapshotKey,
+        mimeType: 'text/html',
+        sizeBytes: snapshotBuffer.length,
+        checksumSha256,
+      },
+    })
+
+    // Tạo DocumentVersion mới
+    const newVersion = await prisma.documentVersion.create({
+      data: {
+        documentId: doc.id,
+        versionNumber: nextVersionNumber,
+        fileName: `${doc.fileName} (v${nextVersionNumber})`,
+        storageKey: snapshotKey,
+        sizeBytes: snapshotBuffer.length,
+        uploadedBy: sessionUser.id,
+        changeNote: changeNote || `Chỉnh sửa nội dung phiên bản ${nextVersionNumber}`,
+      },
+    })
+
+    // Cập nhật Document: editedHtml, updatedBy, title (nếu có)
+    const updateDocData: any = {
+      editedHtml,
+      updatedBy: sessionUser.id,
+    }
+    if (title) updateDocData.title = title
+
+    const updatedDoc = await prisma.document.update({
+      where: { id: doc.id },
+      data: updateDocData,
+    })
+
+    // Ghi AuditLog
+    await prisma.auditLog.create({
+      data: {
+        orgId: sessionUser.orgId,
+        userId: sessionUser.id,
+        action: 'edit',
+        resourceType: 'document',
+        resourceId: doc.id,
+        status: 'SUCCESS',
+        diffJson: JSON.stringify({ versionNumber: nextVersionNumber, changeNote }),
+      },
+    })
+
+    // Phát SyncEvent
+    await prisma.syncEvent.create({
+      data: {
+        orgId: sessionUser.orgId,
+        eventType: 'DOCUMENT_UPDATED',
+        entityType: 'document',
+        entityId: doc.id,
+        payload: JSON.stringify({
+          id: doc.id,
+          versionNumber: nextVersionNumber,
+          departmentId: doc.departmentId,
+        }),
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: `Đã lưu phiên bản ${nextVersionNumber} thành công.`,
+      version: newVersion,
+      document: updatedDoc,
+    })
+  } catch (error: any) {
+    console.error('Lỗi lưu phiên bản chứng từ:', error)
     return NextResponse.json({ error: 'Lỗi máy chủ khi cập nhật chứng từ.' }, { status: 500 })
   }
 }

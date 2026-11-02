@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth/auth-service'
-import { search, type SearchScope } from '@/lib/search'
-import { getDocuments, getShipments, getCustomers } from '@/lib/data'
+import { dbSearch, type SearchScope } from '@/lib/search'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,38 +21,25 @@ export async function GET(req: Request) {
   if (!q.trim()) {
     return NextResponse.json({
       query: '',
+      scope,
       total: 0,
       page: 1,
       limit,
+      totalPages: 0,
       hits: [],
     })
   }
 
-  // BẢO MẬT BẮT BUỘC (Section 5.3):
-  // Nạp dữ liệu qua getDocuments(), getShipments() - vốn đã được lọc quyền nghiêm ngặt
-  // theo vai trò và phòng ban của sessionUser. Không bao giờ tìm kiếm trên dữ liệu ngoài quyền.
-  const [docs, shipments, customers] = await Promise.all([
-    getDocuments(),
-    getShipments(),
-    getCustomers(),
-  ])
-
-  // Lọc theo docType nếu có
-  const filteredDocs = docType && docType !== 'all' ? docs.filter((d) => d.type === docType) : docs
-
-  const searchIndex = {
-    documents: filteredDocs.map(({ versions: _v, ...d }) => d),
-    shipments,
-    customers,
-  }
-
-  // Thực hiện tìm kiếm thông minh: Levenshtein + chuẩn hóa tiếng Việt + OCR matching
-  const allHits = search(searchIndex as any, q.trim(), scope)
-
-  // Phân trang kết quả
-  const total = allHits.length
-  const startIndex = (page - 1) * limit
-  const paginatedHits = allHits.slice(startIndex, startIndex + limit)
+  // TÌM KIẾM TRỰC TIẾP TRÊN CƠ SỞ DỮ LIỆU CÓ PHÂN TRANG:
+  // Không nạp toàn bộ danh sách chứng từ và text OCR vào RAM nữa.
+  // Áp dụng bộ lọc phân quyền dữ liệu theo vai trò và phòng ban của sessionUser.
+  const searchResult = await dbSearch(sessionUser, {
+    query: q,
+    scope,
+    docType: docType || undefined,
+    page,
+    limit,
+  })
 
   // Ghi Audit Log cho hành vi tìm kiếm (không log rầm rộ nếu query quá ngắn)
   if (q.trim().length >= 3) {
@@ -65,19 +51,11 @@ export async function GET(req: Request) {
         resourceType: 'search',
         resourceId: `search:${scope}:${q.trim().slice(0, 30)}`,
         status: 'SUCCESS',
-        diffJson: JSON.stringify({ query: q.trim(), scope, totalHits: total }),
+        diffJson: JSON.stringify({ query: q.trim(), scope, totalHits: searchResult.total }),
       },
     }).catch(() => {})
   }
 
-  return NextResponse.json({
-    query: q,
-    scope,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-    hits: paginatedHits,
-  })
+  return NextResponse.json(searchResult)
 }
 

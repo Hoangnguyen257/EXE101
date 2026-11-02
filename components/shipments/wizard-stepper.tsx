@@ -80,3 +80,4 @@ export function WizardStepper({ currentStep, maxStepAllowed, onStepClick }: Wiza
     </div>
   )
 }
+

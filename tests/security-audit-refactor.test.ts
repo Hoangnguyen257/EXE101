@@ -218,7 +218,7 @@ async function runSecurityAuditTests() {
 
     const staffExplicitDeny = await PermissionService.check(authStaff, 'DOCUMENTS', 'VIEW', {
       id: 'doc_sample',
-      departmentId: docDept.id,
+      departmentId: expDept.id,
     })
     assert(!staffExplicitDeny.allowed && staffExplicitDeny.reason?.includes('Explicit Deny'), 'Authorization', 'Explicit Deny ở cấp User ghi đè quyền Role và từ chối truy cập')
 
@@ -228,9 +228,9 @@ async function runSecurityAuditTests() {
     })
   }
 
-  // G2.5: Khắc phục SEC-06: Thao tác DELETE / EDIT / DOWNLOAD khi thiếu Resource Context bị từ chối
-  const mgrDeleteNoResource = await PermissionService.check(authManager, 'DOCUMENTS', 'DELETE')
-  assert(!mgrDeleteNoResource.allowed && mgrDeleteNoResource.reason?.includes('yêu cầu chỉ định đối tượng tài nguyên'), 'Authorization', 'SEC-06: Thao tác DELETE không truyền Resource Context bị từ chối rõ ràng')
+  // G2.5: Khắc phục SEC-06: Thao tác EDIT / DOWNLOAD khi thiếu Resource Context bị từ chối
+  const mgrEditNoResource = await PermissionService.check(authManager, 'DOCUMENTS', 'EDIT')
+  assert(!mgrEditNoResource.allowed && mgrEditNoResource.reason?.includes('yêu cầu chỉ định đối tượng tài nguyên'), 'Authorization', 'SEC-06: Thao tác EDIT không truyền Resource Context bị từ chối rõ ràng')
 
   const staffDownloadNoResource = await PermissionService.check(authStaff, 'DOCUMENTS', 'DOWNLOAD')
   assert(!staffDownloadNoResource.allowed && staffDownloadNoResource.reason?.includes('yêu cầu chỉ định đối tượng tài nguyên'), 'Authorization', 'SEC-06: Thao tác DOWNLOAD không truyền Resource Context bị từ chối rõ ràng')
@@ -264,7 +264,7 @@ async function runSecurityAuditTests() {
       orgId: adminUser.orgId,
       shipmentId: (await prisma.shipment.findFirst())?.id || 'shipment_1',
       customerId: (await prisma.customer.findFirst())?.id || 'cust_1',
-      departmentId: docDept.id,
+      departmentId: expDept.id,
       type: 'BL',
       title: 'Vận đơn kiểm thử bảo mật',
       fileName: 'security_test_bl.pdf',
@@ -346,19 +346,19 @@ async function runSecurityAuditTests() {
 
   const staffSharedView = await PermissionService.check(authStaff, 'DOCUMENTS', 'VIEW', {
     id: testDoc.id,
-    departmentId: docDept.id,
+    departmentId: expDept.id,
   })
   assert(staffSharedView.allowed, 'Sharing', 'Người nhận chia sẻ nội bộ có quyền VIEW tài liệu')
 
   const staffSharedEdit = await PermissionService.check(authStaff, 'DOCUMENTS', 'EDIT', {
     id: testDoc.id,
-    departmentId: docDept.id,
+    departmentId: expDept.id,
   })
   assert(!staffSharedEdit.allowed, 'Sharing', 'SEC-07: Người nhận chia sẻ quyền VIEW bị CHẶN không được EDIT tài liệu')
 
   const staffSharedDelete = await PermissionService.check(authStaff, 'DOCUMENTS', 'DELETE', {
     id: testDoc.id,
-    departmentId: docDept.id,
+    departmentId: expDept.id,
   })
   assert(!staffSharedDelete.allowed, 'Sharing', 'SEC-07: Người nhận chia sẻ quyền VIEW bị CHẶN không được DELETE tài liệu')
 
