@@ -35,9 +35,10 @@ export async function POST(req: Request) {
 
     // Đảm bảo Set-Cookie header được ghi nhận trực tiếp trên HTTP Response
     if (result.token) {
+      const isHttps = req.headers.get('x-forwarded-proto') === 'https' || req.url.startsWith('https://')
       response.cookies.set(SESSION_COOKIE_NAME, result.token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isHttps,
         sameSite: 'lax',
         path: '/',
         maxAge: 7 * 24 * 60 * 60, // 7 ngày

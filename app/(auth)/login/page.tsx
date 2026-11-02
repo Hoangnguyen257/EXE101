@@ -65,9 +65,7 @@ export default function LoginPage() {
 
   const fillAccountEmail = (accEmail: string) => {
     setEmail(accEmail)
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      setPassword('TestOnly@2026!')
-    }
+    setPassword('Tml@2026!')
   }
 
   return (
@@ -163,7 +161,7 @@ export default function LoginPage() {
                   ))}
                 </div>
                 <div className="mt-2 text-center text-xs text-muted-foreground">
-                  Mật khẩu tài khoản thử nghiệm: <code className="rounded bg-background px-1.5 py-0.5 font-mono text-[11px] font-medium text-foreground border">TestOnly@2026!</code>
+                  Mật khẩu tài khoản thử nghiệm: <code className="rounded bg-background px-1.5 py-0.5 font-mono text-[11px] font-medium text-foreground border">Tml@2026!</code>
                 </div>
               </div>
             </CardContent>

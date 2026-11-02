@@ -227,9 +227,9 @@ async function main() {
 
   // --- NẾU CHẠY CHẾ ĐỘ TEST/DEVELOPMENT (--test) ---
   console.log('--- Đang khởi tạo thêm dữ liệu mẫu cho môi trường kiểm thử (--test) ---')
-  const testPasswordHash = await bcrypt.hash('TestOnly@2026!', 10)
+  const testPasswordHash = await bcrypt.hash('Tml@2026!', 10)
 
-  // Cập nhật tài khoản Admin cho môi trường test dùng chung mật khẩu TestOnly@2026!
+  // Cập nhật tài khoản Admin cho môi trường test dùng mật khẩu kiểm thử Tml@2026!
   await prisma.user.update({
     where: { email: 'admin@tml.vn' },
     data: { passwordHash: testPasswordHash, mustChangePassword: false },
@@ -316,6 +316,8 @@ async function main() {
         name: u.name,
         initials: u.initials,
         roleCode: u.roleCode,
+        passwordHash: testPasswordHash,
+        mustChangePassword: false,
       },
       create: {
         id: u.id,
