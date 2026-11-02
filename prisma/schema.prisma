@@ -222,7 +222,7 @@ model LoginHistory {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([expiresAt])
+  @@index([attemptedAt])
 }
 
 model PasswordResetToken {
