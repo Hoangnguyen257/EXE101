@@ -66,19 +66,38 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
 
   const { document: doc } = share
 
-  // Đọc file thông qua StorageProvider
+  // Lấy mimeType từ StorageObject đã lưu (không hardcode application/pdf)
+  const storageObj = await prisma.storageObject.findUnique({
+    where: { storageKey: doc.storageKey },
+  })
+
+  // Đọc file thông qua StorageProvider (không ghép đường dẫn từ doc.fileName)
   const provider = getStorageProvider()
   let fileBuffer: Buffer
-  let contentType = 'application/pdf'
+  let contentType: string
 
   try {
+    const exists = await provider.exists(doc.storageKey)
+    if (!exists) {
+      throw new Error('Tập tin không tồn tại trên hệ thống lưu trữ.')
+    }
     const storageResult = await provider.get(doc.storageKey)
     fileBuffer = storageResult.buffer
-    contentType = storageResult.mimeType || 'application/pdf'
+    contentType = storageObj?.mimeType || storageResult.mimeType || 'application/octet-stream'
   } catch {
-    const content = doc.ocrResults[0]?.rawText || `TML DOCMANAGER: ${doc.title}\nJob: ${doc.shipmentId}`
-    fileBuffer = Buffer.from(content, 'utf-8')
-    contentType = 'text/plain;charset=utf-8'
+    // Yêu cầu: file không tồn tại thì trả 404 và ghi audit FAILED. Cấm trả text OCR giả làm file.
+    await prisma.auditLog.create({
+      data: {
+        orgId: doc.orgId,
+        userId: share.createdBy,
+        action: 'download',
+        resourceType: 'document',
+        resourceId: doc.id,
+        status: 'FAILED',
+        diffJson: JSON.stringify({ viaShareToken: token, reason: 'FILE_NOT_FOUND' }),
+      },
+    })
+    return NextResponse.json({ error: 'Tập tin không tồn tại trên hệ thống lưu trữ.' }, { status: 404 })
   }
 
   // Tăng số lượt xem/tải theo cơ chế Atomic Concurrency Control (ngăn chặn race condition khi nhiều request đồng thời)
@@ -115,9 +134,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     },
   })
 
+  // Định dạng Content-Disposition chuẩn RFC 5987 / RFC 6266 (filename*=UTF-8''...)
+  const safeName = doc.fileName || 'document'
+  const asciiFallback = safeName.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const utf8Encoded = encodeURIComponent(safeName)
+  const contentDisposition = `attachment; filename="${asciiFallback}"; filename*=UTF-8''${utf8Encoded}`
+
   const headers = new Headers()
   headers.set('Content-Type', contentType)
-  headers.set('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.fileName)}"`)
+  headers.set('Content-Disposition', contentDisposition)
   headers.set('Content-Length', fileBuffer.length.toString())
 
   return new Response(fileBuffer, { headers })

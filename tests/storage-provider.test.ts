@@ -330,8 +330,13 @@ async function runStorageTestSuite() {
             id: 'test_shipment_' + Date.now(),
             orgId: org.id,
             jobNo: 'JOB-TEST-STORAGE',
-            type: 'IMPORT',
-            status: 'IN_PROGRESS',
+            blNo: 'BL-TEST-STORAGE',
+            origin: 'SGN',
+            destination: 'SIN',
+            etd: '2026-11-01',
+            eta: '2026-11-05',
+            mode: 'sea',
+            status: 'booking',
             customerId: 'c1',
             departmentId: 'd1',
             ownerId: 'u1',
@@ -422,3 +427,4 @@ runStorageTestSuite()
   .finally(async () => {
     await prisma.$disconnect()
   })
+

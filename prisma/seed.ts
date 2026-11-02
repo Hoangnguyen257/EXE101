@@ -481,7 +481,15 @@ async function main() {
     fs.mkdirSync(vaultDir, { recursive: true })
   }
 
-  // 11. Documents & Real Storage Files
+  // 11. Documents & Real Storage Files (Sử dụng cấu trúc PDF hợp lệ chuẩn %PDF-1.4 và %%EOF)
+  function generateValidPdfBuffer(title: string, ocrText: string): Buffer {
+    const safeTitle = title.replace(/[()\\]/g, ' ')
+    const safeText = ocrText.replace(/[()\\]/g, ' ').replace(/\n/g, ' ').slice(0, 250)
+    const streamData = `BT /F1 12 Tf 50 720 Td (${safeTitle}) Tj 0 -20 Td (${safeText}) Tj ET`
+    const pdfString = `%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length ${Buffer.byteLength(streamData)} >>\nstream\n${streamData}\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000266 00000 n \ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n400\n%%EOF`
+    return Buffer.from(pdfString, 'utf-8')
+  }
+
   const sampleDocs = [
     {
       id: 'doc_s1_bl',
@@ -579,15 +587,25 @@ async function main() {
   for (const doc of sampleDocs) {
     const storageKey = `docs/${doc.id}/${doc.fileName}`
     const filePath = path.join(vaultDir, doc.fileName)
+    const keyPath = path.join(vaultDir, storageKey)
+    const keyDir = path.dirname(keyPath)
 
-    // Write physical file to storage vault if not exists
-    if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, Buffer.from(`TML LOGISTICS DOCUMENT VAULT\n${doc.title}\n\n${doc.ocrText}`))
+    if (!fs.existsSync(keyDir)) {
+      fs.mkdirSync(keyDir, { recursive: true })
     }
+
+    // Tạo tập tin PDF hợp lệ thực tế
+    const validPdfBuffer = generateValidPdfBuffer(doc.title, doc.ocrText)
+    const validChecksum = crypto.createHash('sha256').update(validPdfBuffer).digest('hex')
+
+    fs.writeFileSync(filePath, validPdfBuffer)
+    fs.writeFileSync(keyPath, validPdfBuffer)
 
     const createdDoc = await prisma.document.upsert({
       where: { id: doc.id },
-      update: {},
+      update: {
+        fileSizeBytes: validPdfBuffer.length,
+      },
       create: {
         id: doc.id,
         orgId: org.id,
@@ -596,7 +614,7 @@ async function main() {
         type: doc.type,
         title: doc.title,
         fileName: doc.fileName,
-        fileSizeBytes: doc.sizeKb * 1024,
+        fileSizeBytes: validPdfBuffer.length,
         storageKey: storageKey,
         pages: doc.pages,
         docDate: doc.docDate,
@@ -610,13 +628,15 @@ async function main() {
     // Create version 1
     const v1 = await prisma.documentVersion.upsert({
       where: { documentId_versionNumber: { documentId: createdDoc.id, versionNumber: 1 } },
-      update: {},
+      update: {
+        sizeBytes: validPdfBuffer.length,
+      },
       create: {
         documentId: createdDoc.id,
         versionNumber: 1,
         fileName: doc.fileName,
         storageKey: storageKey,
-        sizeBytes: doc.sizeKb * 1024,
+        sizeBytes: validPdfBuffer.length,
         uploadedBy: doc.createdBy,
         changeNote: 'Tải lên ban đầu',
       },
@@ -643,12 +663,17 @@ async function main() {
     // Register storage object
     await prisma.storageObject.upsert({
       where: { storageKey: storageKey },
-      update: {},
+      update: {
+        sizeBytes: validPdfBuffer.length,
+        checksumSha256: validChecksum,
+        mimeType: 'application/pdf',
+      },
       create: {
         storageKey: storageKey,
         bucket: 'tml-vault',
         mimeType: 'application/pdf',
-        sizeBytes: doc.sizeKb * 1024,
+        sizeBytes: validPdfBuffer.length,
+        checksumSha256: validChecksum,
       },
     })
   }

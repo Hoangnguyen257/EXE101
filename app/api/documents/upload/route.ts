@@ -3,7 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth/auth-service'
+import { getSessionUser, SESSION_COOKIE_NAME } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
 import { validateCsrf } from '@/lib/security/csrf'
 import { DOC_TYPE_LABEL } from '@/lib/labels'
@@ -26,7 +26,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: csrf.error }, { status: 403 })
   }
 
-  const sessionUser = await getSessionUser()
+  const authHeader = req.headers.get('authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined
+  const cookieHeader = req.headers.get('cookie')
+  const cookieToken = cookieHeader?.split(';').map((c) => c.trim()).find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`))?.split('=')[1]
+  const sessionUser = await getSessionUser(bearerToken || cookieToken)
   if (!sessionUser) {
     return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 })
   }
@@ -96,14 +100,21 @@ export async function POST(req: Request) {
       // 2. Tính mã băm SHA-256 Checksum
       const checksum = uploadValidation.checksum
 
-      // 3. Kiểm tra tệp trùng lặp (Deduplication Check)
-      const existingStorage = await prisma.storageObject.findFirst({
+      // 3. Sửa logic chống trùng: So sánh checksum trong phạm vi lô hàng
+      // Tìm tất cả các storageKey có cùng checksum, sau đó kiểm tra xem lô hàng này đã chứa chứng từ đó chưa
+      const existingStorageObjects = await prisma.storageObject.findMany({
         where: { checksumSha256: checksum },
+        select: { storageKey: true },
       })
 
-      if (existingStorage) {
+      if (existingStorageObjects.length > 0) {
+        const matchingKeys = existingStorageObjects.map((s) => s.storageKey)
         const duplicateInShipment = await prisma.document.findFirst({
-          where: { shipmentId: shipment.id, storageKey: existingStorage.storageKey, isDeleted: false },
+          where: {
+            shipmentId: shipment.id,
+            storageKey: { in: matchingKeys },
+            isDeleted: false,
+          },
         })
 
         if (duplicateInShipment) {
@@ -117,13 +128,22 @@ export async function POST(req: Request) {
         }
       }
 
+      // Giữ tên file gốc riêng để hiển thị, lưu tên đã sanitize cho storage
+      const originalFileName = file.name
       const safeFileName = sanitizeFileName(file.name)
       const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
       const storageKey = generateStorageKey({ extension: ext })
       const provider = getStorageProvider()
 
-      // Ghi tập tin thông qua StorageProvider (hỗ trợ lưu bền vững trên Local disk hoặc S3/R2/MinIO)
-      await provider.put(storageKey, fileBuffer, uploadValidation.mimeType || file.type)
+      // Ghi tập tin vật lý trước (nếu ghi file lỗi thì không tạo bản ghi DB)
+      let writtenStorageKey: string | null = null
+      try {
+        await provider.put(storageKey, fileBuffer, uploadValidation.mimeType || file.type)
+        writtenStorageKey = storageKey
+      } catch (writeErr: any) {
+        console.error('Lỗi khi ghi file vào StorageProvider:', writeErr)
+        return NextResponse.json({ error: 'Không thể ghi tập tin vào hệ thống lưu trữ.' }, { status: 500 })
+      }
 
       const displayLabel = docType === 'OTHER' && customTypeName ? customTypeName : (DOC_TYPE_LABEL[docType as DocType] ?? docType)
       const title = `${displayLabel} ${shipment.jobNo}`
@@ -132,105 +152,117 @@ export async function POST(req: Request) {
       const rawOcrText = extractTextFromBuffer(fileBuffer, file.name)
       const extractedLogistics = extractLogisticsFields(rawOcrText)
 
-      // Tạo Document
-      const newDoc = await prisma.document.create({
-        data: {
-          id: docId,
-          orgId: sessionUser.orgId,
-          shipmentId: shipment.id,
-          customerId: shipment.customerId,
-          departmentId: shipment.departmentId,
-          type: docType,
-          customTypeName: customTypeName || null,
-          title,
-          fileName: file.name,
-          fileSizeBytes: file.size,
-          storageKey,
-          pages: ext === '.pdf' ? 1 : 1,
-          docDate,
-          createdBy: sessionUser.id,
-          updatedBy: sessionUser.id,
-          editedHtml: `<p>${title}</p><p>${rawOcrText.slice(0, 500)}</p>`,
-        },
-      })
+      // Gói tạo Document + Version + OcrResult + StorageObject trong một transaction
+      // Nếu bước DB lỗi -> Xóa file đã ghi trên storage để tránh rác mồ côi
+      let newDoc
+      try {
+        newDoc = await prisma.$transaction(async (tx) => {
+          const doc = await tx.document.create({
+            data: {
+              id: docId,
+              orgId: sessionUser.orgId,
+              shipmentId: shipment.id,
+              customerId: shipment.customerId,
+              departmentId: shipment.departmentId,
+              type: docType,
+              customTypeName: customTypeName || null,
+              title,
+              fileName: originalFileName,
+              fileSizeBytes: file.size,
+              storageKey,
+              pages: ext === '.pdf' ? 1 : 1,
+              docDate,
+              createdBy: sessionUser.id,
+              updatedBy: sessionUser.id,
+              editedHtml: `<p>${title}</p><p>${rawOcrText.slice(0, 500)}</p>`,
+            },
+          })
 
-      // Tạo Document Version 1
-      const version1 = await prisma.documentVersion.create({
-        data: {
-          documentId: newDoc.id,
-          versionNumber: 1,
-          fileName: file.name,
-          storageKey,
-          sizeBytes: file.size,
-          uploadedBy: sessionUser.id,
-          changeNote: 'Tải lên ban đầu',
-        },
-      })
+          const version1 = await tx.documentVersion.create({
+            data: {
+              documentId: doc.id,
+              versionNumber: 1,
+              fileName: originalFileName,
+              storageKey,
+              sizeBytes: file.size,
+              uploadedBy: sessionUser.id,
+              changeNote: 'Tải lên ban đầu',
+            },
+          })
 
-      // 5. Lưu kết quả OCR & thông tin logistics có cấu trúc vào DB
-      await prisma.documentOcrResult.create({
-        data: {
-          documentId: newDoc.id,
-          versionId: version1.id,
-          status: 'COMPLETED',
-          confidenceScore: extractedLogistics.confidenceScore,
-          rawText: rawOcrText,
-          structuredData: JSON.stringify(extractedLogistics),
-        },
-      })
+          await tx.documentOcrResult.create({
+            data: {
+              documentId: doc.id,
+              versionId: version1.id,
+              status: 'COMPLETED',
+              confidenceScore: extractedLogistics.confidenceScore,
+              rawText: rawOcrText,
+              structuredData: JSON.stringify(extractedLogistics),
+            },
+          })
 
-      // Đăng ký Storage Object
-      await prisma.storageObject.create({
-        data: {
-          storageKey,
-          bucket: provider.driver === 's3' ? (process.env.S3_BUCKET || 'tml-storage-vault') : 'tml-vault',
-          mimeType: uploadValidation.mimeType || file.type || (ext === '.pdf' ? 'application/pdf' : 'image/jpeg'),
-          sizeBytes: file.size,
-          checksumSha256: checksum,
-        },
-      })
+          await tx.storageObject.create({
+            data: {
+              storageKey,
+              bucket: provider.driver === 's3' ? (process.env.S3_BUCKET || 'tml-storage-vault') : 'tml-vault',
+              mimeType: uploadValidation.mimeType || file.type || (ext === '.pdf' ? 'application/pdf' : 'image/jpeg'),
+              sizeBytes: file.size,
+              checksumSha256: checksum,
+            },
+          })
 
-      // Cập nhật trạng thái Shipment Requirement sang UPLOADED
-      await prisma.shipmentRequirement.updateMany({
-        where: { shipmentId: shipment.id, docType: docType },
-        data: { status: 'UPLOADED' },
-      })
+          await tx.shipmentRequirement.updateMany({
+            where: { shipmentId: shipment.id, docType: docType },
+            data: { status: 'UPLOADED' },
+          })
 
-      // Audit Log
-      await prisma.auditLog.create({
-        data: {
-          orgId: sessionUser.orgId,
-          userId: sessionUser.id,
-          action: 'upload',
-          resourceType: 'document',
-          resourceId: newDoc.id,
-          status: 'SUCCESS',
-          diffJson: JSON.stringify({
-            fileName: file.name,
-            size: file.size,
-            checksumSha256: checksum,
-            shipment: shipment.jobNo,
-            confidenceScore: extractedLogistics.confidenceScore,
-          }),
-        },
-      })
+          await tx.auditLog.create({
+            data: {
+              orgId: sessionUser.orgId,
+              userId: sessionUser.id,
+              action: 'upload',
+              resourceType: 'document',
+              resourceId: doc.id,
+              status: 'SUCCESS',
+              diffJson: JSON.stringify({
+                fileName: originalFileName,
+                size: file.size,
+                checksumSha256: checksum,
+                shipment: shipment.jobNo,
+                confidenceScore: extractedLogistics.confidenceScore,
+              }),
+            },
+          })
 
-      // Sync Event có kèm departmentId để cách ly SSE
-      await prisma.syncEvent.create({
-        data: {
-          orgId: sessionUser.orgId,
-          eventType: 'DOCUMENT_CREATED',
-          entityType: 'document',
-          entityId: newDoc.id,
-          payload: JSON.stringify({
-            title,
-            shipmentId: shipment.id,
-            departmentId: shipment.departmentId,
-            docType,
-            confidence: extractedLogistics.confidenceScore,
-          }),
-        },
-      })
+          await tx.syncEvent.create({
+            data: {
+              orgId: sessionUser.orgId,
+              eventType: 'DOCUMENT_CREATED',
+              entityType: 'document',
+              entityId: doc.id,
+              payload: JSON.stringify({
+                title,
+                shipmentId: shipment.id,
+                departmentId: shipment.departmentId,
+                docType,
+                confidence: extractedLogistics.confidenceScore,
+              }),
+            },
+          })
+
+          return doc
+        })
+      } catch (dbError: any) {
+        // Rollback: nếu bước DB lỗi thì xóa file đã ghi
+        if (writtenStorageKey) {
+          try {
+            await provider.delete(writtenStorageKey)
+          } catch (delErr) {
+            console.error('Không thể dọn dẹp file mồ côi sau lỗi DB transaction:', delErr)
+          }
+        }
+        throw dbError
+      }
 
       createdDocs.push({
         ...newDoc,

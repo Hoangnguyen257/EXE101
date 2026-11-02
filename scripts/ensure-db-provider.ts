@@ -54,3 +54,4 @@ if (isDirectRun) {
   const target = process.argv[2] as 'sqlite' | 'postgresql' | undefined
   ensurePrismaProvider(target)
 }
+

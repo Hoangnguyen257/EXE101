@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import path from 'path'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth/auth-service'
+import { getSessionUser, SESSION_COOKIE_NAME } from '@/lib/auth/auth-service'
 import { validateCsrf } from '@/lib/security/csrf'
 import { DOC_TYPE_LABEL } from '@/lib/labels'
 import type { DocType } from '@/lib/types'
@@ -20,7 +20,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: csrf.error }, { status: 403 })
   }
 
-  const sessionUser = await getSessionUser()
+  const authHeader = req.headers.get('authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined
+  const cookieHeader = req.headers.get('cookie')
+  const cookieToken = cookieHeader?.split(';').map((c) => c.trim()).find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`))?.split('=')[1]
+  const sessionUser = await getSessionUser(bearerToken || cookieToken)
   if (!sessionUser) {
     return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 })
   }
@@ -99,21 +103,25 @@ export async function POST(req: Request) {
 
     const checksum = validation.checksum
 
-    // 5. Kiểm tra tập tin trùng lặp trong cùng lô hàng (Deduplication Check)
-    const existingStorage = await prisma.storageObject.findFirst({
+    // 5. Sửa logic chống trùng: Kiểm tra tập tin trùng lặp trong phạm vi lô hàng (Deduplication Check)
+    const existingStorageObjects = await prisma.storageObject.findMany({
       where: { checksumSha256: checksum },
+      select: { storageKey: true },
     })
 
-    if (existingStorage) {
+    if (existingStorageObjects.length > 0) {
+      const matchingKeys = existingStorageObjects.map((s) => s.storageKey)
       const duplicateInShipment = await prisma.document.findFirst({
-        where: { shipmentId: pending.shipmentId, storageKey: existingStorage.storageKey, isDeleted: false },
+        where: {
+          shipmentId: pending.shipmentId,
+          storageKey: { in: matchingKeys },
+          isDeleted: false,
+        },
       })
 
       if (duplicateInShipment) {
         // Nếu trùng lặp trong cùng lô, xóa file vừa tải lên để tiết kiệm dung lượng
-        if (existingStorage.storageKey !== pending.storageKey) {
-          await provider.delete(pending.storageKey)
-        }
+        await provider.delete(pending.storageKey)
         return NextResponse.json(
           {
             error: `Tập tin ${pending.fileName} đã tồn tại trong lô hàng này (Trùng mã SHA-256: ${checksum.slice(0, 12)}...).`,
@@ -135,93 +143,110 @@ export async function POST(req: Request) {
     const title = `${displayLabel} ${pending.shipment.jobNo}`
     const ext = path.extname(pending.fileName).toLowerCase()
 
-    // 7. Tạo Document chính thức
-    const newDoc = await prisma.document.create({
-      data: {
-        id: docId,
-        orgId: pending.orgId,
-        shipmentId: pending.shipment.id,
-        customerId: pending.shipment.customerId,
-        departmentId: pending.shipment.departmentId,
-        type: pending.docType,
-        customTypeName: pending.customTypeName,
-        title,
-        fileName: pending.fileName,
-        fileSizeBytes: fileBuffer.length,
-        storageKey: pending.storageKey,
-        pages: ext === '.pdf' ? 1 : 1,
-        docDate: pending.docDate || new Date().toISOString().slice(0, 10),
-        createdBy: sessionUser.id,
-        updatedBy: sessionUser.id,
-        editedHtml: `<p>${title}</p><p>${rawOcrText.slice(0, 500)}</p>`,
-      },
-    })
+    // Gói tạo Document + Version + OcrResult + StorageObject trong một transaction
+    // Nếu bước DB lỗi -> Xóa file đã upload trên storage để rollback
+    let newDoc
+    try {
+      newDoc = await prisma.$transaction(async (tx) => {
+        // 7. Tạo Document chính thức (giữ nguyên fileName gốc để hiển thị)
+        const doc = await tx.document.create({
+          data: {
+            id: docId,
+            orgId: pending.orgId,
+            shipmentId: pending.shipment.id,
+            customerId: pending.shipment.customerId,
+            departmentId: pending.shipment.departmentId,
+            type: pending.docType,
+            customTypeName: pending.customTypeName,
+            title,
+            fileName: pending.fileName,
+            fileSizeBytes: fileBuffer.length,
+            storageKey: pending.storageKey,
+            pages: ext === '.pdf' ? 1 : 1,
+            docDate: pending.docDate || new Date().toISOString().slice(0, 10),
+            createdBy: sessionUser.id,
+            updatedBy: sessionUser.id,
+            editedHtml: `<p>${title}</p><p>${rawOcrText.slice(0, 500)}</p>`,
+          },
+        })
 
-    // 8. Tạo Document Version 1
-    const version1 = await prisma.documentVersion.create({
-      data: {
-        documentId: newDoc.id,
-        versionNumber: 1,
-        fileName: pending.fileName,
-        storageKey: pending.storageKey,
-        sizeBytes: fileBuffer.length,
-        uploadedBy: sessionUser.id,
-        changeNote: 'Tải lên hoàn tất qua Presigned URL',
-      },
-    })
+        // 8. Tạo Document Version 1
+        const version1 = await tx.documentVersion.create({
+          data: {
+            documentId: doc.id,
+            versionNumber: 1,
+            fileName: pending.fileName,
+            storageKey: pending.storageKey,
+            sizeBytes: fileBuffer.length,
+            uploadedBy: sessionUser.id,
+            changeNote: 'Tải lên hoàn tất qua Presigned URL',
+          },
+        })
 
-    // 9. Lưu kết quả OCR vào database
-    await prisma.documentOcrResult.create({
-      data: {
-        documentId: newDoc.id,
-        versionId: version1.id,
-        status: 'COMPLETED',
-        confidenceScore: extractedLogistics.confidenceScore,
-        rawText: rawOcrText,
-        structuredData: JSON.stringify(extractedLogistics),
-      },
-    })
+        // 9. Lưu kết quả OCR vào database
+        await tx.documentOcrResult.create({
+          data: {
+            documentId: doc.id,
+            versionId: version1.id,
+            status: 'COMPLETED',
+            confidenceScore: extractedLogistics.confidenceScore,
+            rawText: rawOcrText,
+            structuredData: JSON.stringify(extractedLogistics),
+          },
+        })
 
-    // 10. Đăng ký StorageObject
-    await prisma.storageObject.upsert({
-      where: { storageKey: pending.storageKey },
-      update: {
-        sizeBytes: fileBuffer.length,
-        checksumSha256: checksum,
-        mimeType: validation.mimeType || pending.mimeType,
-      },
-      create: {
-        storageKey: pending.storageKey,
-        bucket: provider.driver === 's3' ? (process.env.S3_BUCKET || 'tml-storage-vault') : 'tml-vault',
-        mimeType: validation.mimeType || pending.mimeType,
-        sizeBytes: fileBuffer.length,
-        checksumSha256: checksum,
-      },
-    })
+        // 10. Đăng ký StorageObject
+        await tx.storageObject.upsert({
+          where: { storageKey: pending.storageKey },
+          update: {
+            sizeBytes: fileBuffer.length,
+            checksumSha256: checksum,
+            mimeType: validation.mimeType || pending.mimeType,
+          },
+          create: {
+            storageKey: pending.storageKey,
+            bucket: provider.driver === 's3' ? (process.env.S3_BUCKET || 'tml-storage-vault') : 'tml-vault',
+            mimeType: validation.mimeType || pending.mimeType,
+            sizeBytes: fileBuffer.length,
+            checksumSha256: checksum,
+          },
+        })
 
-    // 11. Đánh dấu bản ghi PendingUpload đã hoàn tất
-    await prisma.pendingUpload.update({
-      where: { id: pending.id },
-      data: { confirmedAt: new Date() },
-    })
+        // 11. Đánh dấu bản ghi PendingUpload đã hoàn tất
+        await tx.pendingUpload.update({
+          where: { id: pending.id },
+          data: { confirmedAt: new Date() },
+        })
 
-    // 12. Cập nhật ShipmentRequirement sang UPLOADED
-    await prisma.shipmentRequirement.updateMany({
-      where: { shipmentId: pending.shipmentId, docType: pending.docType },
-      data: { status: 'UPLOADED' },
-    })
+        // 12. Cập nhật ShipmentRequirement sang UPLOADED
+        await tx.shipmentRequirement.updateMany({
+          where: { shipmentId: pending.shipmentId, docType: pending.docType },
+          data: { status: 'UPLOADED' },
+        })
 
-    // 13. Ghi vết kiểm toán Audit Log
-    await prisma.auditLog.create({
-      data: {
-        orgId: sessionUser.orgId,
-        userId: sessionUser.id,
-        action: 'upload',
-        resourceType: 'document',
-        resourceId: newDoc.id,
-        status: 'SUCCESS',
-      },
-    })
+        // 13. Ghi vết kiểm toán Audit Log
+        await tx.auditLog.create({
+          data: {
+            orgId: sessionUser.orgId,
+            userId: sessionUser.id,
+            action: 'upload',
+            resourceType: 'document',
+            resourceId: doc.id,
+            status: 'SUCCESS',
+          },
+        })
+
+        return doc
+      })
+    } catch (dbError: any) {
+      // Rollback: nếu bước DB lỗi thì xóa file đã ghi trên storage
+      try {
+        await provider.delete(pending.storageKey)
+      } catch (delErr) {
+        console.error('Không thể dọn dẹp file sau lỗi DB confirm transaction:', delErr)
+      }
+      throw dbError
+    }
 
     return NextResponse.json({
       success: true,
@@ -237,3 +262,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

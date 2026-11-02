@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import path from 'path'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth/auth-service'
+import { getSessionUser, SESSION_COOKIE_NAME } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
 import { validateCsrf } from '@/lib/security/csrf'
 import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE, sanitizeFileName } from '@/lib/storage/document-storage'
@@ -15,7 +15,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: csrf.error }, { status: 403 })
   }
 
-  const sessionUser = await getSessionUser()
+  const authHeader = req.headers.get('authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined
+  const cookieHeader = req.headers.get('cookie')
+  const cookieToken = cookieHeader?.split(';').map((c) => c.trim()).find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`))?.split('=')[1]
+  const sessionUser = await getSessionUser(bearerToken || cookieToken)
   if (!sessionUser) {
     return NextResponse.json({ error: 'Chưa đăng nhập.' }, { status: 401 })
   }
@@ -95,7 +99,7 @@ export async function POST(req: Request) {
         orgId: sessionUser.orgId,
         shipmentId: shipment.id,
         storageKey,
-        fileName: sanitizeFileName(fileName),
+        fileName: fileName, // Giữ tên gốc riêng để hiển thị, storageKey do server sinh
         fileSizeBytes,
         mimeType,
         docType,
@@ -124,3 +128,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

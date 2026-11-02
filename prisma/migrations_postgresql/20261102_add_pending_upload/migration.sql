@@ -29,3 +29,4 @@ ALTER TABLE "PendingUpload" ADD CONSTRAINT "PendingUpload_orgId_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "PendingUpload" ADD CONSTRAINT "PendingUpload_shipmentId_fkey" FOREIGN KEY ("shipmentId") REFERENCES "Shipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
