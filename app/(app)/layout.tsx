@@ -44,7 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <TransitionProvider>
         <SidebarProvider defaultOpen={sidebarOpen}>
           <AppSidebar alertCount={alertCount} />
-          <SidebarInset>
+          <SidebarInset className="bg-[#F5F8FC] dark:bg-[#040b17] min-h-screen transition-colors duration-500">
             <AppHeader />
             <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6">{children}</div>
           </SidebarInset>

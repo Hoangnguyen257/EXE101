@@ -18,6 +18,12 @@ type SuccessPhase =
   | 'INTO_LOGO' // Scene B4: Document glides between TML logo layers & arc swooshes
   | 'LOGO_PORTAL' // Scene B5: Logo expands into a cosmic portal, revealing Dashboard
 
+/**
+ * LoginSuccessExperience (Task 16 - Seamless Interactive Document into TML Logo Archiving)
+ * THE LOGIN FORM IS THE PAPER:
+ * The interactive document transforms directly into digitized metadata and glides
+ * into the physical layers of the TML Logo.
+ */
 export function LoginSuccessExperience({
   targetUrl,
   onComplete,
@@ -96,12 +102,14 @@ export function LoginSuccessExperience({
         }}
       >
         <Document3D
+          viewMode={phase === 'AUTH_CONFIRMED' ? 'FORM' : 'DIGITIZING'}
           docTitle="HỒ SƠ XÁC THỰC TRUY CẬP · DIGITAL CREDENTIAL"
           docCode="TML-SEC-AUTH-SUCCESS"
           isDigitizing={phase === 'DIGITIZING' || phase === 'INTO_LOGO'}
           showLaser={phase === 'DIGITIZING'}
           showOcrBoxes={phase === 'DIGITIZING'}
           theme="light"
+          isSuccessMorphing={true}
         />
       </div>
 

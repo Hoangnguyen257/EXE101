@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Folder3D } from './Folder3D'
 import { Document3D } from '../shared/Document3D'
-import { LoginFormCard } from '../auth/LoginFormCard'
-import { FastForwardIcon, SparklesIcon, ScanIcon } from 'lucide-react'
+import { FastForwardIcon, SparklesIcon } from 'lucide-react'
 
 export interface IntroExperienceProps {
   onLoginSuccess?: (targetUrl: string) => void
@@ -20,6 +19,12 @@ type IntroPhase =
   | 'MORPHING' // Scene A5: Paper transforms seamlessly into Login Form
   | 'READY' // Scene A5 completed: Full interactive Light Premium Login Form
 
+/**
+ * IntroExperience (Task 16 - Seamless Physical Document to Interactive Form Continuity)
+ * THE LOGIN FORM IS THE PAPER:
+ * The single Document3D paper remains mounted and transitions continuously from:
+ * Physical Logistics Document -> Intelligent OCR Scanning -> Interactive Login Document.
+ */
 export function IntroExperience({
   onLoginSuccess,
   isSuccessMorphing = false,
@@ -82,7 +87,7 @@ export function IntroExperience({
   }, [forceReplay])
 
   const isFormActive = skipIntro || phase === 'MORPHING' || phase === 'READY'
-  const isLightBackground = skipIntro || phase === 'MORPHING' || phase === 'READY'
+  const isLightBackground = isFormActive
 
   return (
     <div
@@ -139,20 +144,27 @@ export function IntroExperience({
         </div>
       )}
 
-      {/* --- SCENE A3 & A4: EXTRACTING & INTELLIGENT SCANNING DOCUMENT --- */}
-      {(phase === 'EXTRACTING' || phase === 'SCANNING') && (
+      {/* --- SCENE A3, A4 & A5: THE SINGLE CONTINUOUS PHYSICAL DOCUMENT PAPER --- */}
+      {(phase !== 'INITIAL' && phase !== 'OPENING') && (
         <div
-          className="absolute z-30 transition-all duration-700 ease-out"
+          className="relative z-40 w-full max-w-[440px] flex justify-center transition-all duration-700 ease-out"
           style={{
             willChange: 'transform, opacity',
             transform:
-              phase === 'SCANNING'
-                ? 'perspective(1200px) rotateX(6deg) rotateY(-2deg) translate3d(0, -40px, 0) scale(1.02)'
-                : 'perspective(1200px) rotateX(15deg) rotateY(-8deg) translate3d(0, -70px, 0) scale(0.94)',
+              phase === 'EXTRACTING'
+                ? 'perspective(1200px) rotateX(15deg) rotateY(-8deg) translate3d(0, -70px, 0) scale(0.94)'
+                : phase === 'SCANNING'
+                  ? 'perspective(1200px) rotateX(6deg) rotateY(-2deg) translate3d(0, -40px, 0) scale(1.02)'
+                  : 'perspective(1200px) rotateX(0deg) rotateY(0deg) translate3d(0, 0, 0) scale(1)',
             opacity: 1,
+            animation:
+              phase === 'MORPHING'
+                ? 'scaleInMorph 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+                : undefined,
           }}
         >
           <Document3D
+            viewMode={isFormActive ? 'FORM' : 'DOCUMENT'}
             docTitle="VẬN ĐƠN ĐƯỜNG BIỂN QUỐC TẾ · BILL OF LADING"
             docCode="TML-BL-2026-X89"
             scale={1}
@@ -160,23 +172,6 @@ export function IntroExperience({
             showLaser={phase === 'SCANNING'}
             showOcrBoxes={phase === 'SCANNING'}
             theme="light"
-          />
-        </div>
-      )}
-
-      {/* --- SCENE A5: PAPER-TO-LOGIN CONTINUOUS FORM --- */}
-      {isFormActive && (
-        <div
-          className="relative z-40 w-full max-w-[440px] transition-all duration-700 ease-out"
-          style={{
-            willChange: 'transform, opacity',
-            animation:
-              phase === 'MORPHING'
-                ? 'scaleInMorph 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards'
-                : undefined,
-          }}
-        >
-          <LoginFormCard
             onLoginSuccess={onLoginSuccess}
             isSuccessMorphing={isSuccessMorphing}
           />

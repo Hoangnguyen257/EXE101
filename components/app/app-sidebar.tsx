@@ -15,6 +15,7 @@ import {
   SettingsIcon,
   ShieldCheckIcon,
   UsersIcon,
+  SparklesIcon,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -34,13 +35,19 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { useApp } from './app-provider'
 
-const WORK_NAV = [
+const WORKSPACE_NAV = [
   { href: '/dashboard', label: 'Tổng quan', icon: LayoutDashboardIcon, tour: undefined },
-  { href: '/shipments', label: 'Lô hàng', icon: PackageIcon, tour: 'nav-shipments' },
   { href: '/documents', label: 'Chứng từ đã lưu', icon: FileTextIcon, tour: undefined },
-  { href: '/scan', label: 'Quét chứng từ', icon: ScanLineIcon, tour: undefined },
-  { href: '/alerts', label: 'Cảnh báo', icon: BellRingIcon, tour: undefined, badgeKey: 'alerts' as const },
+]
+
+const LOGISTICS_NAV = [
+  { href: '/shipments', label: 'Lô hàng', icon: PackageIcon, tour: 'nav-shipments' },
   { href: '/archive', label: 'Lưu trữ vật lý', icon: ArchiveIcon, tour: undefined },
+]
+
+const INTELLIGENCE_NAV = [
+  { href: '/scan', label: 'Quét & OCR', icon: ScanLineIcon, tour: undefined },
+  { href: '/alerts', label: 'Cảnh báo', icon: BellRingIcon, tour: undefined, badgeKey: 'alerts' as const },
 ]
 
 export function AppSidebar({ alertCount }: { alertCount: number }) {
@@ -55,73 +62,151 @@ export function AppSidebar({ alertCount }: { alertCount: number }) {
   const isManager = role === 'manager' || role === 'team_lead'
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader>
+    <Sidebar collapsible="icon" className="border-r border-slate-200/80 dark:border-blue-900/40">
+      <SidebarHeader className="border-b border-slate-100 dark:border-blue-900/30 pb-3">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link href="/dashboard" />} tooltip="TML DocManager">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden bg-background border shadow-xs">
-                <Image src="/tml-logo.jpg" alt="TML Logo" width={32} height={32} className="object-contain" priority />
+              <div className="flex aspect-square size-9 items-center justify-center rounded-xl overflow-hidden bg-white border border-slate-200 shadow-sm">
+                <Image src="/tml-logo.jpg" alt="TML Logo" width={34} height={34} className="object-contain" priority />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">TML DocManager</span>
-                <span className="truncate text-xs text-muted-foreground">Logistics Tân Minh</span>
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
+                  <span className="truncate">TML DocManager</span>
+                  <span className="size-1.5 rounded-full bg-amber-500" />
+                </div>
+                <span className="truncate text-[11px] text-[#0875E8] font-medium tracking-wide">
+                  INTELLIGENT VAULT
+                </span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent>
-        {/* NHÓM 1: LÀM VIỆC (Hiển thị cho tất cả vai trò) */}
+      <SidebarContent className="gap-1 py-2">
+        {/* GROUP 1: WORKSPACE */}
         <SidebarGroup>
-          <SidebarGroupLabel>Làm việc</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Không gian làm việc
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {WORK_NAV.map((item) => (
+              {WORKSPACE_NAV.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     render={<Link href={item.href} />}
                     isActive={isActive(item.href)}
                     tooltip={item.label}
                     data-tour={item.tour}
+                    className="font-medium"
                   >
-                    <item.icon />
+                    <item.icon className="size-4 text-[#0875E8]" />
                     <span>{item.label}</span>
                   </SidebarMenuButton>
-                  {item.badgeKey && alertCount > 0 && <SidebarMenuBadge>{alertCount}</SidebarMenuBadge>}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* NHÓM 2: QUẢN TRỊ (Chỉ hiển thị cho Admin và Manager, ẩn hoàn toàn đối với Staff) */}
+        {/* GROUP 2: LOGISTICS */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Nghiệp vụ Logistics
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {LOGISTICS_NAV.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    render={<Link href={item.href} />}
+                    isActive={isActive(item.href)}
+                    tooltip={item.label}
+                    data-tour={item.tour}
+                    className="font-medium"
+                  >
+                    <item.icon className="size-4" />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* GROUP 3: INTELLIGENCE & OCR */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center justify-between">
+            <span>Trí tuệ số & Cảnh báo</span>
+            <SparklesIcon className="size-2.5 text-cyan-500" />
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {INTELLIGENCE_NAV.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    render={<Link href={item.href} />}
+                    isActive={isActive(item.href)}
+                    tooltip={item.label}
+                    data-tour={item.tour}
+                    className="font-medium"
+                  >
+                    <item.icon className="size-4" />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                  {item.badgeKey && alertCount > 0 && (
+                    <SidebarMenuBadge className="bg-red-500/10 text-red-600 font-bold border border-red-200">
+                      {alertCount}
+                    </SidebarMenuBadge>
+                  )}
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* GROUP 4: MANAGEMENT (Admin / Manager) */}
         {isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel className="flex items-center justify-between">
+            <SidebarGroupLabel className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               <span>Quản trị hệ thống</span>
-              <Badge variant="outline" className="text-[10px] uppercase text-primary border-primary/30">
+              <Badge variant="outline" className="text-[9px] font-mono uppercase text-[#0875E8] border-[#0875E8]/30 bg-blue-50/50">
                 Admin
               </Badge>
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton render={<Link href="/settings/permissions" />} isActive={isActive('/settings/permissions')} tooltip="Phân quyền Enterprise">
-                    <ShieldCheckIcon />
+                  <SidebarMenuButton
+                    render={<Link href="/settings/permissions" />}
+                    isActive={isActive('/settings/permissions')}
+                    tooltip="Phân quyền Enterprise"
+                    className="font-medium"
+                  >
+                    <ShieldCheckIcon className="size-4 text-emerald-600" />
                     <span>Trung tâm Phân quyền</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton render={<Link href="/audit" />} isActive={isActive('/audit')} tooltip="Nhật ký kiểm toán">
-                    <ScrollTextIcon />
+                  <SidebarMenuButton
+                    render={<Link href="/audit" />}
+                    isActive={isActive('/audit')}
+                    tooltip="Nhật ký kiểm toán"
+                    className="font-medium"
+                  >
+                    <ScrollTextIcon className="size-4" />
                     <span>Nhật ký Kiểm toán</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton render={<Link href="/settings" />} isActive={isActive('/settings')} tooltip="Cài đặt tổ chức & Người dùng">
-                    <SettingsIcon />
+                  <SidebarMenuButton
+                    render={<Link href="/settings" />}
+                    isActive={isActive('/settings')}
+                    tooltip="Cài đặt tổ chức & Người dùng"
+                    className="font-medium"
+                  >
+                    <SettingsIcon className="size-4" />
                     <span>Cài đặt & Người dùng</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -132,29 +217,44 @@ export function AppSidebar({ alertCount }: { alertCount: number }) {
 
         {!isAdmin && isManager && (
           <SidebarGroup>
-            <SidebarGroupLabel className="flex items-center justify-between">
+            <SidebarGroupLabel className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               <span>Quản trị phòng ban</span>
-              <Badge variant="outline" className="text-[10px] uppercase text-amber-600 border-amber-300">
+              <Badge variant="outline" className="text-[9px] font-mono uppercase text-amber-600 border-amber-300 bg-amber-50/50">
                 Manager
               </Badge>
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton render={<Link href="/settings" />} isActive={isActive('/settings')} tooltip="Nhân sự phòng ban">
-                    <UsersIcon />
+                  <SidebarMenuButton
+                    render={<Link href="/settings" />}
+                    isActive={isActive('/settings')}
+                    tooltip="Nhân sự phòng ban"
+                    className="font-medium"
+                  >
+                    <UsersIcon className="size-4" />
                     <span>Thành viên phòng ban</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton render={<Link href="/audit" />} isActive={isActive('/audit')} tooltip="Nhật ký phòng ban">
-                    <ScrollTextIcon />
+                  <SidebarMenuButton
+                    render={<Link href="/audit" />}
+                    isActive={isActive('/audit')}
+                    tooltip="Nhật ký phòng ban"
+                    className="font-medium"
+                  >
+                    <ScrollTextIcon className="size-4" />
                     <span>Nhật ký phòng ban</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton render={<Link href="/settings/permissions" />} isActive={isActive('/settings/permissions')} tooltip="Quy tắc phân quyền">
-                    <ShieldCheckIcon />
+                  <SidebarMenuButton
+                    render={<Link href="/settings/permissions" />}
+                    isActive={isActive('/settings/permissions')}
+                    tooltip="Quy tắc phân quyền"
+                    className="font-medium"
+                  >
+                    <ShieldCheckIcon className="size-4 text-amber-600" />
                     <span>Quy tắc phòng ban</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -164,14 +264,17 @@ export function AppSidebar({ alertCount }: { alertCount: number }) {
         )}
       </SidebarContent>
 
-      <SidebarFooter>
-        <div className="flex flex-col gap-2 rounded-lg border bg-background p-3 text-xs group-data-[collapsible=icon]:hidden">
+      <SidebarFooter className="border-t border-slate-100 dark:border-blue-900/30 pt-3">
+        <div className="flex flex-col gap-2 rounded-xl border border-slate-200/90 dark:border-blue-900/40 bg-white/80 dark:bg-[#07182F]/80 p-3 text-xs shadow-xs group-data-[collapsible=icon]:hidden">
           <div className="flex items-center justify-between">
-            <span className="font-medium">Dung lượng</span>
-            <span className="text-muted-foreground">38,2 / 100 GB</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Kho dữ liệu TML</span>
+            <span className="font-mono text-[11px] text-[#0875E8] font-bold">38,2 / 100 GB</span>
           </div>
-          <Progress value={38} aria-label="Dung lượng đã dùng" />
-          <span className="text-muted-foreground">Gói Enterprise · 31 người dùng</span>
+          <Progress value={38} aria-label="Dung lượng đã dùng" className="h-1.5 bg-slate-100" />
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>Enterprise Vault</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Bảo mật ISO 27001</span>
+          </div>
         </div>
       </SidebarFooter>
       <SidebarRail />

@@ -11,6 +11,7 @@ import {
   LogOutIcon,
   CheckCircle2Icon,
   ActivityIcon,
+  ArrowRightIcon,
 } from 'lucide-react'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -36,17 +37,29 @@ const ACTION_ICON: Record<string, typeof EyeIcon> = {
 
 export function RecentActivity({ activities, users }: { activities: Activity[]; users: User[] }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Hoạt động gần đây</CardTitle>
-        <CardDescription>Cập nhật theo thời gian thực từ toàn bộ nhóm</CardDescription>
+    <Card className="rounded-2xl border border-slate-200/90 dark:border-blue-900/40 bg-white dark:bg-[#07182F] shadow-xs">
+      <CardHeader className="border-b border-slate-100 dark:border-blue-900/30 pb-4">
+        <div className="flex items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-blue-500/10 text-[#0875E8]">
+            <ActivityIcon className="size-4" />
+          </div>
+          <div>
+            <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
+              Hoạt động gần đây
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500">
+              Nhật ký thao tác số hóa & xử lý chứng từ theo thời gian thực
+            </CardDescription>
+          </div>
+        </div>
         <CardAction>
-          <Button variant="ghost" size="sm" render={<Link href="/audit" />} nativeButton={false}>
+          <Button variant="ghost" size="sm" render={<Link href="/audit" />} nativeButton={false} className="text-xs text-[#0875E8] hover:text-[#0661c4]">
             Xem nhật ký
+            <ArrowRightIcon className="ml-1 size-3.5" />
           </Button>
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         <ol className="flex flex-col">
           {activities.map((a, i) => {
             const user = users.find((u) => u.id === a.userId)
@@ -54,25 +67,23 @@ export function RecentActivity({ activities, users }: { activities: Activity[]; 
             const Icon = ACTION_ICON[actionKey] ?? ActivityIcon ?? EyeIcon
             return (
               <li key={a.id} className="relative flex gap-3 pb-4 last:pb-0">
-                {i < activities.length - 1 && <span aria-hidden className="absolute top-9 left-4 h-[calc(100%-2.25rem)] w-px bg-border" />}
-                <Avatar className="size-8">
-                  <AvatarFallback className="text-xs">{user?.initials ?? '??'}</AvatarFallback>
+                {i < activities.length - 1 && (
+                  <span aria-hidden className="absolute top-9 left-4 h-[calc(100%-2.25rem)] w-px bg-slate-200 dark:bg-blue-900/40" />
+                )}
+                <Avatar className="size-8 border border-slate-200 dark:border-blue-800">
+                  <AvatarFallback className="text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-blue-950 dark:text-blue-200">
+                    {user?.initials ?? '??'}
+                  </AvatarFallback>
                 </Avatar>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5 pt-0.5">
-                  <p className="text-sm leading-snug">
-                    <span className="font-medium">{user?.name ?? 'Người dùng'}</span> {a.description}
-                  </p>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Icon className="size-3" />
-                    <span>{formatRelative(a.at)}</span>
-                    {a.documentId && (
-                      <>
-                        <span aria-hidden>·</span>
-                        <Link href={`/documents/${a.documentId}`} className="text-primary hover:underline">
-                          Mở chứng từ
-                        </Link>
-                      </>
-                    )}
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{user?.name ?? 'Hệ thống'}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-[11px] text-muted-foreground">{formatRelative(a.at)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                    <Icon className="size-3.5 text-[#0875E8] shrink-0" />
+                    <span className="truncate">{a.description}</span>
                   </div>
                 </div>
               </li>

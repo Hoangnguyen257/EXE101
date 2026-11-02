@@ -1,15 +1,16 @@
 /**
  * TML LOGISTICS - TASK 16 COMPREHENSIVE VERIFICATION SUITE
- * CINEMATIC 3D INTELLIGENT DOCUMENT VAULT EXPERIENCE & AUTHENTICATION TRANSITIONS
+ * CINEMATIC 3D INTELLIGENT DOCUMENT VAULT EXPERIENCE & GLOBAL DESIGN SYSTEM
  * 
  * Verifies:
  * 1. Brand Logo Assets & Color Identity
- * 2. Flow 1: 3D Folder Opening -> Document Extraction -> OCR Bounding Boxes -> Login Form Morphing
- * 3. Flow 2: Login Success -> Form-to-Doc -> Digitization -> TML Logo Absorption -> Dashboard Reveal
- * 4. Flow 3: Logout -> createPortal(document.body) -> Data Return -> Document Emerge -> Login Form
+ * 2. Flow A: 3D Folder Opening -> Document Extraction -> OCR Bounding Boxes -> Login Form Morphing
+ * 3. Flow B: Login Success -> Form-to-Doc -> Digitization -> TML Logo Absorption -> Dashboard Reveal
+ * 4. Flow D: Logout -> createPortal(document.body) -> Data Return -> Document Emerge -> Login Form
  * 5. Security & Session Invalidation Integrity during transitions
- * 6. Visual Theme Hybrid (Dark Navy Intro, Light Premium Login, Existing Dashboard)
- * 7. 60fps GPU Performance & Accessibility (prefers-reduced-motion, Skip Intro)
+ * 6. Continuous Physical Paper: The Login Form IS the Paper (viewMode: DOCUMENT <-> FORM)
+ * 7. Global Design System Tokens: Primary Blue, Deep Navy, Orange, Light Premium Gray
+ * 8. Workspace & Dashboard Redesign (Sidebar Grouping, KPI Cards, Responsive Geometry)
  */
 
 import fs from 'fs'
@@ -19,7 +20,7 @@ import { login, revokeUserSessions } from '../lib/auth/auth-service'
 
 async function runTask16Tests() {
   console.log('\n================================================================================')
-  console.log('🧪 BẮT ĐẦU KIỂM THỬ TASK 16: TRẢI NGHIỆM CHỨNG TỪ 3D & CHUYỂN CẢNH ĐĂNG NHẬP')
+  console.log('🧪 BẮT ĐẦU KIỂM THỬ TASK 16: TRẢI NGHIỆM CHỨNG TỪ 3D & HỆ THỐNG THIẾT KẾ ĐỒNG BỘ')
   console.log('================================================================================\n')
 
   let passed = 0
@@ -73,6 +74,7 @@ async function runTask16Tests() {
   assert(doc3DSource.includes('SHIPPER') && doc3DSource.includes('CONSIGNEE'), 'Document3D hiển thị chi tiết Shipper và Consignee chuẩn logistics')
   assert(doc3DSource.includes('0901.11.10') && doc3DSource.includes('40HC'), 'Document3D có đầy đủ dữ liệu nghiệp vụ (HS Code, Container 40HC)')
   assert(doc3DSource.includes('theme') && doc3DSource.includes('bg-white'), 'Document3D hỗ trợ giao diện chuẩn Document Light và Dark')
+
   const introSource = fs.readFileSync(introComponentPath, 'utf8')
   assert(introSource.includes('#F5F8FC'), 'IntroExperience chuyển màu nền mượt mà sang Light Premium (#F5F8FC)')
 
@@ -83,8 +85,8 @@ async function runTask16Tests() {
   assert(loginCardSource.includes('ha.tran@tml.vn'), 'LoginFormCard giữ nguyên tài khoản quản trị viên MANAGER')
   assert(loginCardSource.includes('lan.pham@tml.vn'), 'LoginFormCard giữ nguyên tài khoản STAFF')
   assert(loginCardSource.includes('Tml@2026!'), 'Mật khẩu thử nghiệm Tml@2026! được bảo lưu đầy đủ')
-  assert(loginCardSource.includes('ACCESS GRANTED') || loginCardSource.includes('XÁC THỰC THÀNH CÔNG'), 'LoginFormCard có trạng thái xác nhận đăng nhập bảo mật')
-  assert(loginCardSource.includes('max-w-[440px]') || loginCardSource.includes('w-[440px]'), 'LoginFormCard đồng bộ chuẩn kích thước 440px với Document3D')
+  assert(loginCardSource.includes('ACCESS GRANTED') || doc3DSource.includes('ACCESS GRANTED'), 'Có trạng thái xác nhận đăng nhập bảo mật ACCESS GRANTED')
+  assert(loginCardSource.includes('max-w-[440px]') || doc3DSource.includes('max-w-[440px]'), 'Đồng bộ chuẩn kích thước 440px với Document3D')
 
   // ---------------------------------------------------------------------------
   // [PHẦN 3] FLOW B: LOGIN SUCCESS & SỐ HÓA CHỨNG TỪ VÀO LOGO
@@ -144,6 +146,35 @@ async function runTask16Tests() {
   const transitionContextPath = path.resolve(process.cwd(), 'components/transitions/TransitionContext.tsx')
   const transitionContextSource = fs.readFileSync(transitionContextPath, 'utf8')
   assert(transitionContextSource.includes('dynamic') && transitionContextSource.includes('ssr: false'), 'LogoutExperience được tải lười (next/dynamic ssr:false) tối ưu hóa tải trang')
+
+  // ---------------------------------------------------------------------------
+  // [PHẦN 6] NGUYÊN TẮC CỐT LÕI: THE LOGIN FORM IS THE PAPER (TÍNH LIỀN MẠCH)
+  // ---------------------------------------------------------------------------
+  console.log('\n▶ [PHẦN 6] LIỀN MẠCH: THE LOGIN FORM IS THE PAPER')
+  assert(doc3DSource.includes('viewMode') && doc3DSource.includes("'FORM'"), 'Document3D trực tiếp định hình giao diện Form tương tác trên bề mặt giấy')
+  assert(doc3DSource.includes('chuyenvien@tml.vn'), 'Document3D chứa input Email chuyên viên trực tiếp trên giấy')
+  assert(doc3DSource.includes('doc-password'), 'Document3D chứa input Mật khẩu bảo mật với toggle hiển thị')
+  assert(doc3DSource.includes('SECURE WORKSPACE ACCESS'), 'Document3D có nhãn nhận diện bảo mật cao cấp')
+  assert(doc3DSource.includes('MỞ KHÓA KHO CHỨNG TỪ'), 'Nút hành động chính định vị trực tiếp trên phần chân tờ giấy')
+  assert(doc3DSource.includes('via-amber-500'), 'Dải viền cam tinh tế lấy cảm hứng từ logo TML xuất hiện dưới chân giấy')
+
+  // ---------------------------------------------------------------------------
+  // [PHẦN 7] GLOBAL DESIGN SYSTEM & ĐỒNG BỘ GIAO DIỆN HỆ THỐNG
+  // ---------------------------------------------------------------------------
+  console.log('\n▶ [PHẦN 7] GLOBAL DESIGN SYSTEM & ĐỒNG BỘ TOÀN DIỆN')
+  assert(globalsCss.includes('--tml-primary: #0875E8;'), 'CSS Tokens có TML Primary Blue (#0875E8)')
+  assert(globalsCss.includes('--tml-navy: #07182F;'), 'CSS Tokens có TML Deep Navy (#07182F)')
+  assert(globalsCss.includes('--tml-orange: #F59E0B;'), 'CSS Tokens có TML Subtle Orange (#F59E0B)')
+  assert(globalsCss.includes('--tml-bg: #F5F8FC;'), 'CSS Tokens có TML Light Premium Background (#F5F8FC)')
+
+  const sidebarPath = path.resolve(process.cwd(), 'components/app/app-sidebar.tsx')
+  const sidebarSource = fs.readFileSync(sidebarPath, 'utf8')
+  assert(sidebarSource.includes('WORKSPACE_NAV') && sidebarSource.includes('LOGISTICS_NAV'), 'Sidebar tổ chức theo các nhóm Enterprise: Workspace, Logistics, Intelligence, Management')
+  assert(sidebarSource.includes('INTELLIGENT VAULT'), 'Sidebar thể hiện chuẩn nhận diện Intelligent Vault')
+
+  const kpiPath = path.resolve(process.cwd(), 'components/dashboard/kpi-cards.tsx')
+  const kpiSource = fs.readFileSync(kpiPath, 'utf8')
+  assert(kpiSource.includes('rounded-2xl') && kpiSource.includes('#0875E8'), 'KPI Cards được thiết kế chuẩn Enterprise SaaS với bo góc rounded-2xl và màu TML Blue')
 
   console.log('\n================================================================================')
   console.log(`TỔNG HỢP KIỂM THỬ TASK 16: ${passed} PASSED / ${failed} FAILED`)

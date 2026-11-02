@@ -18,6 +18,13 @@ type LogoutPhase =
   | 'PAPER_TO_LOGIN' // Scene D4: Document transforms toward Light Premium Login
   | 'DONE' // Transition completes, redirecting to /login
 
+/**
+ * LogoutExperience (Task 16 - Reverse Archiving & Security Session Revocation)
+ * THE LOGIN FORM IS THE PAPER:
+ * The physical document reconstructed from the TML Logo is the EXACT same
+ * paper surface that expands into the interactive login document.
+ * Security-first: Uses createPortal(..., document.body) to avoid header containment bug.
+ */
 export function LogoutExperience({ onComplete }: LogoutExperienceProps) {
   const [phase, setPhase] = useState<LogoutPhase>('DASHBOARD_COLLAPSE')
   const [mounted, setMounted] = useState(false)
@@ -25,13 +32,18 @@ export function LogoutExperience({ onComplete }: LogoutExperienceProps) {
   useEffect(() => {
     setMounted(true)
 
+    // Revoke server session immediately on logout trigger
+    try {
+      fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    } catch {}
+
     // Sequence the 4 Scenes of Flow D (Reverse Archiving)
     const t1 = setTimeout(() => {
       setPhase('DATA_TO_LOGO') // 0.35s: Logo appears, absorbing session
     }, 350)
 
     const t2 = setTimeout(() => {
-      setPhase('PAPER_RECONSTRUCT') // 0.95s: Sealed receipt emerges
+      setPhase('PAPER_RECONSTRUCT') // 0.95s: Sealed document emerges
     }, 950)
 
     const t3 = setTimeout(() => {
@@ -118,7 +130,7 @@ export function LogoutExperience({ onComplete }: LogoutExperienceProps) {
       {/* --- SCENE D3 & D4: RECONSTRUCTED PHYSICAL DOCUMENT EMERGING --- */}
       {(phase === 'PAPER_RECONSTRUCT' || phase === 'PAPER_TO_LOGIN' || phase === 'DONE') && (
         <div
-          className="absolute z-40"
+          className="absolute z-40 w-full max-w-[440px] flex justify-center"
           style={{
             willChange: 'transform, opacity',
             transition: 'all 0.85s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -130,6 +142,7 @@ export function LogoutExperience({ onComplete }: LogoutExperienceProps) {
           }}
         >
           <Document3D
+            viewMode={isLightLogin ? 'FORM' : 'DOCUMENT'}
             docTitle="CHỨNG TỪ KHOÁ NIÊM PHONG · LOGOUT RECEIPT"
             docCode="TML-SESSION-TERMINATED"
             isDigitizing={phase === 'PAPER_RECONSTRUCT'}
