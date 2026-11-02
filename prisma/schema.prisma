@@ -76,6 +76,7 @@ model User {
   initials          String
   roleCode          String    @default("STAFF") // ADMIN, MANAGER, STAFF
   isActive          Boolean   @default(true)
+  mustChangePassword Boolean  @default(false)
   failedAttempts    Int       @default(0)
   lockedUntil       DateTime?
   twoFactorSecret   String?

@@ -50,7 +50,12 @@ export default function LoginPage() {
       }
 
       toast.success('Đăng nhập thành công', { description: 'Chào mừng bạn quay trở lại hệ thống TML.' })
-      window.location.href = '/dashboard'
+
+      if (data.mustChangePassword) {
+        window.location.href = '/change-password'
+      } else {
+        window.location.href = '/dashboard'
+      }
     } catch {
       setErrorMessage('Không thể kết nối đến máy chủ xác thực.')
       toast.error('Lỗi kết nối')
@@ -58,10 +63,8 @@ export default function LoginPage() {
     }
   }
 
-  const quickLogin = (accEmail: string) => {
+  const fillAccountEmail = (accEmail: string) => {
     setEmail(accEmail)
-    setPassword('Tml@2026!')
-    handleLogin(undefined, accEmail, 'Tml@2026!')
   }
 
   return (
@@ -137,7 +140,7 @@ export default function LoginPage() {
                 <div className="mb-2 flex items-center justify-between text-xs font-medium text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     <UserCheckIcon className="size-3.5" />
-                    Đăng nhập nhanh (Môi trường Thử nghiệm):
+                    Chọn email tài khoản:
                   </span>
                 </div>
                 <div className="grid gap-1.5">
@@ -145,7 +148,7 @@ export default function LoginPage() {
                     <button
                       key={acc.email}
                       type="button"
-                      onClick={() => quickLogin(acc.email)}
+                      onClick={() => fillAccountEmail(acc.email)}
                       disabled={loading}
                       className="flex items-center justify-between rounded-md border bg-background px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-accent"
                     >

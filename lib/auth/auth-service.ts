@@ -86,6 +86,7 @@ export interface AuthUser {
   departments: { id: string; name: string; code: string; isPrimary: boolean; isManager: boolean }[]
   positions: { id: string; name: string; level: number }[]
   isActive: boolean
+  mustChangePassword?: boolean
 }
 
 /**
@@ -283,7 +284,7 @@ export async function login(
     // Cho phép chạy trong môi trường CLI hoặc automated tests
   }
 
-  return { success: true, token }
+  return { success: true, token, mustChangePassword: (user as any).mustChangePassword ?? false }
 }
 
 export async function logout() {
@@ -388,46 +389,20 @@ export async function getSessionUser(tokenOverride?: string): Promise<AuthUser |
     })
 
     // Kiểm tra tính hợp lệ của phiên:
-    // 1. Phải tồn tại trong database (hoặc serverless instance fallback nếu dùng SQLite đa container)
+    // 1. Phải tồn tại trong database (Bắt buộc, không dùng serverless fallback)
     // 2. TokenHash phải trùng khớp
     // 3. Chưa bị thu hồi (revokedAt is null)
     // 4. Chưa hết hạn
-    if (dbSession) {
-      if (
-        dbSession.tokenHash !== expectedHash ||
-        dbSession.revokedAt !== null ||
-        dbSession.expiresAt < new Date()
-      ) {
-        return null
-      }
-    }
-
-    let user = dbSession?.user
-
-    const isServerless = Boolean(
-      process.env.VERCEL ||
-      process.env.AWS_LAMBDA_FUNCTION_NAME ||
-      process.env.LAMBDA_TASK_ROOT ||
-      process.env.VERCEL_ENV
-    )
-
-    // Nếu không tìm thấy session trong DB và đang trong môi trường Serverless (Vercel):
-    // Do SQLite trong /tmp là cục bộ theo từng Lambda function, session vừa tạo ở /api/auth/login
-    // có thể chưa đồng bộ sang Lambda của /dashboard. JWT đã được verifySessionToken() xác thực an toàn tuyệt đối.
-    if (!user && isServerless && payload.userId) {
-      const foundUser = await prisma.user.findUnique({
-        where: { id: payload.userId },
-        include: {
-          departments: { include: { department: true } },
-          positions: { include: { position: true } },
-        },
-      })
-      if (foundUser) {
-        user = foundUser
-      }
-    } else if (!user) {
+    if (
+      !dbSession ||
+      dbSession.tokenHash !== expectedHash ||
+      dbSession.revokedAt !== null ||
+      dbSession.expiresAt < new Date()
+    ) {
       return null
     }
+
+    const { user } = dbSession
 
     // 5. Tài khoản phải còn hoạt động và không bị khóa
     if (!user || !user.isActive) {
@@ -440,7 +415,7 @@ export async function getSessionUser(tokenOverride?: string): Promise<AuthUser |
 
     return {
       id: user.id,
-      sessionId: payload.sessionId,
+      sessionId: dbSession.id,
       orgId: user.orgId,
       email: user.email,
       name: user.name,
@@ -459,6 +434,7 @@ export async function getSessionUser(tokenOverride?: string): Promise<AuthUser |
         level: p.position.level,
       })),
       isActive: user.isActive,
+      mustChangePassword: (user as any).mustChangePassword ?? false,
     }
   } catch (error: any) {
     if (error?.digest === 'DYNAMIC_SERVER_USAGE' || error?.message?.includes('DYNAMIC_SERVER_USAGE')) {

@@ -12,13 +12,20 @@ __v0_jsx-dev-runtime.ts
 .env
 
 # Database & Backups
+prisma/dev.db
+*.db
 backups/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Storage Vault & Sensitive Uploads
+storage_vault/
+*.zip
 
 # Common ignores
 node_modules
 .next/
 .DS_Store
 *.tsbuildinfo
+tsconfig.tsbuildinfo

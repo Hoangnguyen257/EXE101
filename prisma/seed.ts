@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
 
@@ -154,20 +155,94 @@ async function main() {
     posMap[pos.name] = p.id
   }
 
-  // 6. Users & Passwords (bcrypt salt rounds = 10)
-  const defaultPasswordHash = await bcrypt.hash('Tml@2026!', 10)
+  // 6. Users & Passwords
+  const isTestMode = process.argv.includes('--test') || process.env.SEED_MODE === 'test'
 
-  const usersData = [
-    {
-      id: 'u1',
-      email: 'admin@tml.vn',
+  function generateSecureRandomPassword(length = 20): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*'
+    const bytes = crypto.randomBytes(length)
+    let result = ''
+    for (let i = 0; i < length; i++) {
+      result += chars[bytes[i] % chars.length]
+    }
+    return result
+  }
+
+  // Production Seed: Chỉ tạo 1 tài khoản Admin duy nhất với mật khẩu ngẫu nhiên in ra 1 lần
+  const adminRandomPassword = generateSecureRandomPassword(20)
+  const adminPasswordHash = await bcrypt.hash(adminRandomPassword, 12)
+
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@tml.vn' },
+    update: {
       name: 'Nguyễn Hoàng',
       initials: 'NH',
       roleCode: 'ADMIN',
-      deptCode: 'MGMT',
-      posName: 'Giám đốc',
-      isManager: true,
+      isActive: true,
+      mustChangePassword: true,
     },
+    create: {
+      id: 'u1',
+      orgId: org.id,
+      email: 'admin@tml.vn',
+      passwordHash: adminPasswordHash,
+      name: 'Nguyễn Hoàng',
+      initials: 'NH',
+      roleCode: 'ADMIN',
+      isActive: true,
+      mustChangePassword: true,
+    },
+  })
+
+  // Gắn phòng ban và chức vụ cho Admin
+  const mgmtDeptId = deptMap['MGMT']
+  if (mgmtDeptId) {
+    await prisma.userDepartment.upsert({
+      where: { userId_departmentId: { userId: adminUser.id, departmentId: mgmtDeptId } },
+      update: { isManager: true, isPrimary: true },
+      create: {
+        userId: adminUser.id,
+        departmentId: mgmtDeptId,
+        isPrimary: true,
+        isManager: true,
+      },
+    })
+    await prisma.department.update({
+      where: { id: mgmtDeptId },
+      data: { headUserId: adminUser.id },
+    })
+  }
+
+  const gdocPosId = posMap['Giám đốc']
+  if (gdocPosId) {
+    await prisma.userPosition.upsert({
+      where: { userId_positionId: { userId: adminUser.id, positionId: gdocPosId } },
+      update: {},
+      create: { userId: adminUser.id, positionId: gdocPosId },
+    })
+  }
+
+  if (!isTestMode) {
+    console.log('='.repeat(80))
+    console.log('🚀 SEED CƠ SỞ DỮ LIỆU SẠCH CHO MÔI TRƯỜNG PRODUCTION THÀNH CÔNG!')
+    console.log('='.repeat(80))
+    console.log(`👤 Tài khoản Quản trị viên (Admin):`)
+    console.log(`   - Email:               admin@tml.vn`)
+    console.log(`   - Mật khẩu khởi tạo:  ${adminRandomPassword}`)
+    console.log(`   - Bắt buộc đổi MK:    CÓ (mustChangePassword = true)`)
+    console.log(`\n⚠️  CẢNH BÁO AN NINH:`)
+    console.log(`   Mật khẩu khởi tạo ngẫu nhiên chỉ được in ra duy nhất một lần tại nhật ký này.`)
+    console.log(`   Hãy lưu trữ an toàn trong trình quản lý mật khẩu của doanh nghiệp.`)
+    console.log(`   Hệ thống sạch không chứa bất kỳ dữ liệu mẫu (Dummy/Test Data) nào.`)
+    console.log('='.repeat(80))
+    return
+  }
+
+  // --- NẾU CHẠY CHẾ ĐỘ TEST/DEVELOPMENT (--test) ---
+  console.log('--- Đang khởi tạo thêm dữ liệu mẫu cho môi trường kiểm thử (--test) ---')
+  const testPasswordHash = await bcrypt.hash('TestOnly@2026!', 10)
+
+  const usersData = [
     {
       id: 'u2',
       email: 'ha.tran@tml.vn',
@@ -253,11 +328,12 @@ async function main() {
         id: u.id,
         orgId: org.id,
         email: u.email,
-        passwordHash: defaultPasswordHash,
+        passwordHash: testPasswordHash,
         name: u.name,
         initials: u.initials,
         roleCode: u.roleCode,
         isActive: true,
+        mustChangePassword: false,
       },
     })
     userMap[u.id] = user.id

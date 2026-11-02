@@ -15,6 +15,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect('/login')
   }
 
+  if (sessionUser.mustChangePassword) {
+    redirect('/change-password')
+  }
+
   const [cookieStore, searchIndex, shipments, customers, currentUser, users, alerts] = await Promise.all([
     cookies(),
     getSearchIndex(),

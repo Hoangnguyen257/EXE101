@@ -27,7 +27,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: UNIFIED_AUTH_ERROR_MESSAGE }, { status: 401 })
     }
 
-    const response = NextResponse.json({ success: true, message: 'Đăng nhập thành công.' })
+    const response = NextResponse.json({
+      success: true,
+      message: 'Đăng nhập thành công.',
+      mustChangePassword: (result as any).mustChangePassword ?? false,
+    })
 
     // Đảm bảo Set-Cookie header được ghi nhận trực tiếp trên HTTP Response
     if (result.token) {

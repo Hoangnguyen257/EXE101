@@ -45,7 +45,10 @@ export async function POST(req: Request) {
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: newHash },
+      data: {
+        passwordHash: newHash,
+        mustChangePassword: false,
+      },
     })
 
     // Thu hồi các phiên đăng nhập khác của người dùng để bảo mật (B2)

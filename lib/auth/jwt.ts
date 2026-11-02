@@ -4,22 +4,24 @@ const ISSUER = 'tml-logistics'
 const AUDIENCE = 'tml-web'
 const SHARE_AUDIENCE = 'tml-share-access'
 
-function getJwtSecret(): Uint8Array {
+export function getJwtSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET
 
-  if (secret && secret.length >= 32) {
-    return new TextEncoder().encode(secret)
-  }
-
-  // Resilient fallback for serverless deployments (Vercel, etc.) when env var has not been configured yet
-  if (process.env.NODE_ENV === 'production') {
-    console.warn(
-      '[SECURITY WARNING] JWT_SECRET is not configured or shorter than 32 chars. Using resilient fallback secret for continuity. Please configure JWT_SECRET in your Vercel project environment variables.'
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      'FATAL SECURITY CONFIGURATION ERROR: JWT_SECRET environment variable is missing or less than 32 characters. System refuses to start or execute authentication without a cryptographically secure key.'
     )
   }
 
-  const devSecret = 'tml-enterprise-super-secure-jwt-secret-key-min-32-chars-2026'
-  return new TextEncoder().encode(devSecret)
+  return new TextEncoder().encode(secret)
+}
+
+/**
+ * Thẩm định cấu hình JWT khi khởi động hệ thống.
+ * Ngăn chặn toàn bộ tiến trình khởi động nếu thiếu JWT_SECRET an toàn.
+ */
+export function assertJwtSecretConfigured(): void {
+  getJwtSecret()
 }
 
 export interface SessionPayload {
@@ -60,8 +62,8 @@ export async function signSessionToken(payload: SessionPayload, expiresIn = '7d'
  * Xác minh chữ ký số JWT, issuer, audience và tính hợp lệ của phiên
  */
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
+  const secret = getJwtSecret()
   try {
-    const secret = getJwtSecret()
     const { payload } = await jwtVerify(token, secret, {
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -130,8 +132,8 @@ export async function verifyShareAccessToken(
   expectedShareId?: string,
   expectedToken?: string
 ): Promise<{ shareId: string; token: string } | null> {
+  const secret = getJwtSecret()
   try {
-    const secret = getJwtSecret()
     const { payload } = await jwtVerify(credentialToken, secret, {
       issuer: ISSUER,
       audience: SHARE_AUDIENCE,
