@@ -1,7 +1,12 @@
 'use client'
 
 import React, { createContext, useContext, useState, useCallback } from 'react'
-import { LogoutExperience } from './logout/LogoutExperience'
+import dynamic from 'next/dynamic'
+
+const DynamicLogoutExperience = dynamic(
+  () => import('./logout/LogoutExperience').then((m) => m.LogoutExperience),
+  { ssr: false }
+)
 
 interface TransitionContextType {
   isLoggingOut: boolean
@@ -33,7 +38,7 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
   return (
     <TransitionContext.Provider value={{ isLoggingOut, startLogout }}>
       {children}
-      {isLoggingOut && <LogoutExperience onComplete={() => window.location.replace('/login')} />}
+      {isLoggingOut && <DynamicLogoutExperience onComplete={() => window.location.replace('/login')} />}
     </TransitionContext.Provider>
   )
 }

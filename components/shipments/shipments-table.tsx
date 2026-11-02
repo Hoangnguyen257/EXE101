@@ -185,9 +185,9 @@ export function ShipmentsTable({
                         <Progress value={s.progress} className="flex-1" aria-label={`Đủ ${s.progress}% chứng từ`} />
                         <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{s.progress}%</span>
                       </div>
-                      {s.missingTypes.length > 0 ? (
+                      {s.missingTypes.filter((t) => (t as string) !== 'ARRIVAL_NOTICE').length > 0 ? (
                         <div className="flex flex-wrap gap-1">
-                          {s.missingTypes.map((t) => (
+                          {s.missingTypes.filter((t) => (t as string) !== 'ARRIVAL_NOTICE').map((t) => (
                             <Badge key={t} variant="destructive" className="h-4 px-1.5 text-[10px]">
                               {DOC_TYPE_SHORT[t]}
                             </Badge>

@@ -14,7 +14,7 @@ export interface ShipmentWithProgress extends Shipment {
 }
 
 function calculateProgress(s: Shipment, docTypes: DocType[]): ShipmentWithProgress {
-  const required = getRequiredDocTypes(s)
+  const required = getRequiredDocTypes(s).filter((t) => (t as string) !== 'ARRIVAL_NOTICE')
   const presentTypes = required.filter((t) => docTypes.includes(t))
   const missingTypes = required.filter((t) => !presentTypes.includes(t))
   return {
@@ -447,6 +447,7 @@ export async function getAlerts(shipmentId?: string, tokenOverride?: string): Pr
     if (shipmentId && s.id !== shipmentId) continue
     const isExport = s.origin.toUpperCase().includes('VN')
     for (const t of s.missingTypes) {
+      if ((t as string) === 'ARRIVAL_NOTICE') continue
       const targetDate = t === 'BOOKING' ? s.etd : isExport ? s.etd : s.eta
       const days = daysUntil(targetDate)
       const critical = t === 'DELIVERY_ORDER' || t === 'BOOKING' ? days <= 3 : days <= 7

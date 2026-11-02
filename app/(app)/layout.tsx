@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app/app-sidebar'
 import { AppHeader } from '@/components/app/app-header'
 import { AppProvider } from '@/components/app/app-provider'
+import { TransitionProvider } from '@/components/transitions/TransitionContext'
 import { getCurrentUser, getUsers } from '@/lib/data'
 import { getSessionUser } from '@/lib/auth/auth-service'
 import { prisma } from '@/lib/prisma'
@@ -40,13 +41,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <AppProvider currentUser={currentUser} users={users}>
-      <SidebarProvider defaultOpen={sidebarOpen}>
-        <AppSidebar alertCount={alertCount} />
-        <SidebarInset>
-          <AppHeader />
-          <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6">{children}</div>
-        </SidebarInset>
-      </SidebarProvider>
+      <TransitionProvider>
+        <SidebarProvider defaultOpen={sidebarOpen}>
+          <AppSidebar alertCount={alertCount} />
+          <SidebarInset>
+            <AppHeader />
+            <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6">{children}</div>
+          </SidebarInset>
+        </SidebarProvider>
+      </TransitionProvider>
     </AppProvider>
   )
 }

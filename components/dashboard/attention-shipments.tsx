@@ -34,7 +34,7 @@ export function AttentionShipments({ shipments }: { shipments: ShipmentWithProgr
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1 sm:justify-end">
-                  {s.missingTypes.map((t) => (
+                  {s.missingTypes.filter((t) => (t as string) !== 'ARRIVAL_NOTICE').map((t) => (
                     <Badge key={t} variant="destructive">
                       {DOC_TYPE_SHORT[t]}
                     </Badge>

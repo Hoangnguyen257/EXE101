@@ -16,6 +16,14 @@ async function fixIncompleteShipments() {
 
   console.log(`🔍 Tìm thấy tổng cộng ${shipments.length} lô hàng trong hệ thống.`)
 
+  // Gỡ bỏ hoàn toàn ARRIVAL_NOTICE khỏi checklist yêu cầu của mọi lô hàng
+  const cleanedNotice = await prisma.shipmentRequirement.deleteMany({
+    where: { docType: 'ARRIVAL_NOTICE' },
+  })
+  if (cleanedNotice.count > 0) {
+    console.log(`🧹 Đã gỡ bỏ ${cleanedNotice.count} bản ghi ARRIVAL_NOTICE không bắt buộc khỏi CSDL.`)
+  }
+
   let fixedChecklistCount = 0
   let fixedGoodsCount = 0
 

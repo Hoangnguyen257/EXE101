@@ -1,8 +1,13 @@
 'use client'
 
 import React, { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { IntroExperience } from '@/components/transitions/intro/IntroExperience'
-import { LoginSuccessExperience } from '@/components/transitions/auth/LoginSuccessExperience'
+
+const DynamicLoginSuccessExperience = dynamic(
+  () => import('@/components/transitions/auth/LoginSuccessExperience').then((m) => m.LoginSuccessExperience),
+  { ssr: false }
+)
 
 export default function LoginPage() {
   const [successRedirectUrl, setSuccessRedirectUrl] = useState<string | null>(null)
@@ -22,7 +27,7 @@ export default function LoginPage() {
 
       {/* 2. Màn hình Số hóa chứng từ bay vào Logo TML khi Đăng nhập thành công (Flow 2) */}
       {successRedirectUrl && (
-        <LoginSuccessExperience
+        <DynamicLoginSuccessExperience
           targetUrl={successRedirectUrl}
           onComplete={() => {
             window.location.replace(successRedirectUrl)

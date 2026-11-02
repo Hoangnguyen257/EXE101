@@ -25,22 +25,22 @@ export function LoginSuccessExperience({
   const [phase, setPhase] = useState<SuccessPhase>('CARD_TO_DOC')
 
   useEffect(() => {
-    // Sequence the digitization & transition into logo
+    // Tinh chỉnh chuỗi thời gian tối ưu (2.2s tổng thể - dứt khoát, mượt mà chuẩn Enterprise)
     const t1 = setTimeout(() => {
       setPhase('DIGITIZING')
-    }, 700)
+    }, 350)
 
     const t2 = setTimeout(() => {
       setPhase('INTO_LOGO')
-    }, 1700)
+    }, 950)
 
     const t3 = setTimeout(() => {
       setPhase('LOGO_ABSORB')
-    }, 2700)
+    }, 1500)
 
     const t4 = setTimeout(() => {
       setPhase('EXPAND_DASHBOARD')
-    }, 3600)
+    }, 1900)
 
     const t5 = setTimeout(() => {
       if (onComplete) {
@@ -48,7 +48,7 @@ export function LoginSuccessExperience({
       } else {
         window.location.replace(targetUrl)
       }
-    }, 4400)
+    }, 2250)
 
     return () => {
       clearTimeout(t1)
@@ -63,7 +63,7 @@ export function LoginSuccessExperience({
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-gradient-to-b from-[#061124] via-[#091a38] to-[#040b17] text-white select-none perspective-1200">
       {/* Background Deep Space Logistics Glow */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-40 transition-opacity duration-1000"
+        className="pointer-events-none absolute inset-0 opacity-45 transition-all duration-700"
         style={{
           backgroundImage:
             'radial-gradient(circle at 50% 50%, rgba(14, 117, 255, 0.45) 0%, rgba(255, 122, 0, 0.15) 50%, transparent 80%)',
@@ -75,15 +75,17 @@ export function LoginSuccessExperience({
 
       {/* --- SCENE B & C: FLOATING 3D DOCUMENT (BEING DIGITIZED) --- */}
       <div
-        className="relative z-30 transition-all duration-1000 ease-in-out"
+        className="relative z-30"
         style={{
+          willChange: 'transform, opacity',
+          transition: 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
           transform:
             phase === 'CARD_TO_DOC'
-              ? 'perspective(1200px) rotateX(10deg) translateY(0px) scale(1)'
+              ? 'perspective(1200px) rotateX(10deg) translate3d(0, 0, 0) scale(1)'
               : phase === 'DIGITIZING'
-                ? 'perspective(1200px) rotateX(15deg) rotateY(-8deg) translateY(-20px) scale(0.95)'
+                ? 'perspective(1200px) rotateX(14deg) rotateY(-6deg) translate3d(0, -15px, 0) scale(0.96)'
                 : phase === 'INTO_LOGO' || phase === 'LOGO_ABSORB' || phase === 'EXPAND_DASHBOARD'
-                  ? 'perspective(1200px) rotateX(35deg) rotateY(15deg) translateY(-60px) translateZ(-400px) scale(0.18)'
+                  ? 'perspective(1200px) rotateX(30deg) rotateY(12deg) translate3d(0, -50px, -350px) scale(0.2)'
                   : 'scale(1)',
           opacity:
             phase === 'INTO_LOGO'
@@ -103,8 +105,10 @@ export function LoginSuccessExperience({
 
       {/* --- SCENE D & E: TML LOGO (RECEIVES DOCUMENT & EXPANDS INTO DASHBOARD) --- */}
       <div
-        className="absolute z-40 flex flex-col items-center justify-center transition-all duration-1000 ease-out"
+        className="absolute z-40 flex flex-col items-center justify-center"
         style={{
+          willChange: 'transform, opacity',
+          transition: 'all 0.65s cubic-bezier(0.16, 1, 0.3, 1)',
           opacity:
             phase === 'CARD_TO_DOC'
               ? 0
@@ -113,14 +117,14 @@ export function LoginSuccessExperience({
                 : 1,
           transform:
             phase === 'CARD_TO_DOC'
-              ? 'scale(0.5) translateY(40px)'
+              ? 'scale(0.5) translate3d(0, 30px, 0)'
               : phase === 'DIGITIZING'
-                ? 'scale(0.85) translateY(100px)'
+                ? 'scale(0.85) translate3d(0, 70px, 0)'
                 : phase === 'INTO_LOGO'
-                  ? 'scale(1.2) translateY(0px)'
+                  ? 'scale(1.15) translate3d(0, 0, 0)'
                   : phase === 'LOGO_ABSORB'
-                    ? 'scale(1.3) translateY(0px)'
-                    : 'scale(14) translateZ(800px)', // Camera zooms into logo center
+                    ? 'scale(1.25) translate3d(0, 0, 0)'
+                    : 'scale(12) translate3d(0, 0, 600px)',
         }}
       >
         <TMLLogoScene
@@ -130,14 +134,13 @@ export function LoginSuccessExperience({
           showGlow
         />
 
-        {phase !== 'EXPAND_DASHBOARD' && (
-          <div className="mt-4 flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-950/40 px-4 py-1 text-xs font-mono text-cyan-300 backdrop-blur-md">
+        {phase !== 'EXPAND_DASHBOARD' && phase !== 'CARD_TO_DOC' && (
+          <div className="mt-3 flex items-center gap-1.5 rounded-full border border-cyan-400/30 bg-cyan-950/40 px-3.5 py-1 text-xs font-mono text-cyan-300 backdrop-blur-md">
             <SparklesIcon className="size-3.5 text-cyan-400 animate-spin" />
             <span>
-              {phase === 'CARD_TO_DOC' && 'Chuyển hóa giao diện thành chứng từ...'}
-              {phase === 'DIGITIZING' && 'Số hóa dữ liệu & mã hóa 256-bit...'}
-              {phase === 'INTO_LOGO' && 'Lưu trữ chứng từ vào kho số TML...'}
-              {phase === 'LOGO_ABSORB' && 'Xác thực thành công! Đang mở Dashboard...'}
+              {phase === 'DIGITIZING' && 'Đang quét số hóa chứng từ...'}
+              {phase === 'INTO_LOGO' && 'Đưa chứng từ vào kho TML...'}
+              {phase === 'LOGO_ABSORB' && 'Xác thực thành công. Đang mở Dashboard...'}
             </span>
           </div>
         )}
@@ -145,4 +148,3 @@ export function LoginSuccessExperience({
     </div>
   )
 }
-
