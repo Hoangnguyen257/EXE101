@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import Image from 'next/image'
 import {
   ArchiveIcon,
   BellRingIcon,
@@ -59,8 +60,8 @@ export function AppSidebar({ alertCount }: { alertCount: number }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link href="/dashboard" />} tooltip="TML DocManager">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <FileStackIcon className="size-4" />
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden bg-background border shadow-xs">
+                <Image src="/tml-logo.jpg" alt="TML Logo" width={32} height={32} className="object-contain" priority />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">TML DocManager</span>

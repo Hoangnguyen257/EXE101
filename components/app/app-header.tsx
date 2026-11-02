@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
@@ -24,20 +25,22 @@ import { toast } from 'sonner'
 import { ROLE_LABEL } from '@/lib/labels'
 import { useApp } from './app-provider'
 import { SyncBadge } from './status-badges'
+import { LogoutExperience } from '@/components/transitions/logout/LogoutExperience'
 
 export function AppHeader() {
   const { currentUser, openSearch, openUpload, startTour, sync } = useApp()
   const { theme, setTheme } = useTheme()
   const router = useRouter()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = async () => {
+    setIsLoggingOut(true)
     try {
+      // Ngắt phiên làm việc thực sự ở Backend trước khi chuyển cảnh
       await fetch('/api/auth/logout', { method: 'POST' })
       toast.success('Đã đăng xuất an toàn khỏi hệ thống.')
-      router.push('/login')
-      router.refresh()
     } catch {
-      router.push('/login')
+      // Tiếp tục chuyển về login dù mạng chập chờn
     }
   }
 
@@ -126,6 +129,7 @@ export function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {isLoggingOut && <LogoutExperience onComplete={() => window.location.replace('/login')} />}
     </header>
   )
 }
