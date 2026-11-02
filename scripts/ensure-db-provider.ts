@@ -78,14 +78,17 @@ export function ensurePrismaProvider(forcedProvider?: 'sqlite' | 'postgresql'): 
       }
     }
   } else if (provider === 'postgresql') {
-    // Với PostgreSQL, nếu có DATABASE_URL kết nối được thì chạy deploy migration
+    // Với PostgreSQL, tự động đồng bộ cấu trúc schema và seed dữ liệu mẫu
     const dbUrl = process.env.DATABASE_URL || ''
     if (dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://'))) {
       try {
-        console.log('[Prisma Deploy] Thực thi migration PostgreSQL...')
-        execSync('npx prisma migrate deploy', { stdio: 'inherit' })
+        console.log('[Prisma Deploy] Đang tự động đồng bộ cấu trúc bảng vào PostgreSQL...')
+        execSync('npx prisma db push --skip-generate --accept-data-loss', { stdio: 'inherit' })
+        console.log('[Prisma Deploy] Đang nạp dữ liệu tài khoản mẫu vào PostgreSQL...')
+        execSync('npx tsx prisma/seed.ts --test', { stdio: 'inherit' })
+        console.log('[Prisma Deploy] Khởi tạo CSDL PostgreSQL Production thành công!')
       } catch (err: any) {
-        console.warn('[Prisma Deploy] Không thể tự động migrate PostgreSQL (có thể do chưa kết nối được DB):', err.message)
+        console.warn('[Prisma Deploy] Lỗi tự động cấu hình PostgreSQL:', err.message)
       }
     }
   }
