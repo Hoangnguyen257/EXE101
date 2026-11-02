@@ -272,7 +272,8 @@ export async function login(
   try {
     const cookieStore = await cookies()
     // Chỉ bật Secure khi thực sự chạy trên kết nối HTTPS để tránh mất cookie khi thử nghiệm trên HTTP mạng nội bộ
-    const isHttps = process.env.NODE_ENV === 'production' && (process.env.NEXTAUTH_URL?.startsWith('https') || process.env.APP_URL?.startsWith('https') || false)
+    const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || ''
+    const isHttps = process.env.NODE_ENV === 'production' && appUrl.startsWith('https://') && !appUrl.includes('localhost') && !appUrl.includes('127.0.0.1')
     cookieStore.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: isHttps,

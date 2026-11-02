@@ -1,10 +1,56 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
 import { validateCsrf } from '@/lib/security/csrf'
+import { SHIPMENT_STATUS_LABEL } from '@/lib/labels'
 
 export const dynamic = 'force-dynamic'
+
+export const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
+  draft: ['booking', 'in_transit', 'arrived', 'closed'],
+  booking: ['in_transit', 'customs', 'arrived', 'closed'],
+  in_transit: ['arrived', 'customs', 'on_yard', 'delivered', 'closed'],
+  arrived: ['on_yard', 'customs', 'delivered', 'closed'],
+  on_yard: ['customs', 'delivered', 'closed'],
+  customs: ['delivered', 'on_yard', 'closed'],
+  delivered: ['closed'],
+  closed: [], // Đã đóng hồ sơ, không thể chuyển sang trạng thái khác
+}
+
+const patchShipmentSchema = z.object({
+  status: z.enum([
+    'draft',
+    'booking',
+    'in_transit',
+    'arrived',
+    'on_yard',
+    'customs',
+    'delivered',
+    'closed',
+  ], {
+    error: 'Trạng thái lô hàng không hợp lệ.',
+  }).optional(),
+  blNo: z.string({
+    error: 'Số vận đơn (blNo) phải là chuỗi ký tự.',
+  }).trim().optional(),
+  etd: z.string({
+    error: 'Ngày khởi hành (etd) phải là chuỗi ký tự.',
+  }).optional(),
+  eta: z.string({
+    error: 'Ngày đến dự kiến (eta) phải là chuỗi ký tự.',
+  }).optional(),
+  goodsDesc: z.string({
+    error: 'Mô tả hàng hóa phải là chuỗi ký tự.',
+  }).optional(),
+  destination: z.string({
+    error: 'Cảng đến phải là chuỗi ký tự.',
+  }).optional(),
+  origin: z.string({
+    error: 'Cảng đi phải là chuỗi ký tự.',
+  }).optional(),
+})
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

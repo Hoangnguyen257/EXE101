@@ -36,6 +36,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email: loginEmail, password: loginPass }),
       })
 
@@ -52,10 +53,9 @@ export default function LoginPage() {
       toast.success('Đăng nhập thành công', { description: 'Chào mừng bạn quay trở lại hệ thống TML.' })
 
       const targetUrl = data.mustChangePassword ? '/change-password' : '/dashboard'
-      // Đảm bảo Cookie jar của trình duyệt kịp ghi nhận Set-Cookie trước khi chuyển hướng trang
-      setTimeout(() => {
-        window.location.replace(targetUrl)
-      }, 150)
+      // Làm mới client router cache và điều hướng trang tức thì
+      router.refresh()
+      window.location.href = targetUrl
     } catch {
       setErrorMessage('Không thể kết nối đến máy chủ xác thực.')
       toast.error('Lỗi kết nối')
@@ -66,6 +66,8 @@ export default function LoginPage() {
   const fillAccountEmail = (accEmail: string) => {
     setEmail(accEmail)
     setPassword('Tml@2026!')
+    // Tự động đăng nhập nhanh với tài khoản thử nghiệm
+    handleLogin(undefined, accEmail, 'Tml@2026!')
   }
 
   return (
@@ -98,7 +100,9 @@ export default function LoginPage() {
                   <MailIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="email"
+                    name="email"
                     type="email"
+                    autoComplete="username"
                     placeholder="ten.nguoidung@tml.vn"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -118,7 +122,9 @@ export default function LoginPage() {
                   <LockIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="password"
+                    name="password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -167,7 +173,7 @@ export default function LoginPage() {
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Đang xác thực...' : 'Đăng nhập vào hệ thống'}
+                {loading ? 'Đang xác thực & chuyển hướng...' : 'Đăng nhập vào hệ thống'}
               </Button>
               <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
                 <ShieldCheckIcon className="size-3.5 text-success" />
