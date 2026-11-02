@@ -4,7 +4,7 @@ import fs from 'fs'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { verifyShareAccessToken } from '@/lib/auth/jwt'
-import { VAULT_DIR } from '@/lib/storage/document-storage'
+import { getStorageProvider } from '@/lib/storage/storage-provider'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,18 +66,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
 
   const { document: doc } = share
 
-  // Đọc file thực tế từ Storage Vault
-  const expectedDiskPath = path.join(VAULT_DIR, path.basename(doc.storageKey))
-  const directPath = path.join(VAULT_DIR, doc.fileName)
-
+  // Đọc file thông qua StorageProvider
+  const provider = getStorageProvider()
   let fileBuffer: Buffer
   let contentType = 'application/pdf'
 
-  if (fs.existsSync(expectedDiskPath)) {
-    fileBuffer = fs.readFileSync(expectedDiskPath)
-  } else if (fs.existsSync(directPath)) {
-    fileBuffer = fs.readFileSync(directPath)
-  } else {
+  try {
+    const storageResult = await provider.get(doc.storageKey)
+    fileBuffer = storageResult.buffer
+    contentType = storageResult.mimeType || 'application/pdf'
+  } catch {
     const content = doc.ocrResults[0]?.rawText || `TML DOCMANAGER: ${doc.title}\nJob: ${doc.shipmentId}`
     fileBuffer = Buffer.from(content, 'utf-8')
     contentType = 'text/plain;charset=utf-8'

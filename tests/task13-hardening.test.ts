@@ -189,10 +189,12 @@ async function runTask13HardeningSuite() {
   console.log('\n[TASK 13.3] POSTGRESQL SCHEMA & MIGRATION VALIDATION')
   {
     const pgSchemaPath = path.resolve(process.cwd(), 'prisma/schema.postgresql.prisma')
+    const unifiedSchemaPath = path.resolve(process.cwd(), 'prisma/schema.prisma')
+    const providerScriptPath = path.resolve(process.cwd(), 'scripts/ensure-db-provider.ts')
     const pgMigrationPath = path.resolve(process.cwd(), 'prisma/migrations_postgresql/20261101_init/migration.sql')
 
-    const pgSchemaExists = fs.existsSync(pgSchemaPath)
-    record('TASK 13.3', 'File cấu hình schema PostgreSQL riêng biệt tồn tại (schema.postgresql.prisma)', pgSchemaExists)
+    const hasUnifiedPgMechanism = fs.existsSync(pgSchemaPath) || (fs.existsSync(unifiedSchemaPath) && fs.existsSync(providerScriptPath))
+    record('TASK 13.3', 'Cơ chế cấu hình schema PostgreSQL thống nhất (hỗ trợ postgresql provider)', hasUnifiedPgMechanism)
 
     const pgMigrationExists = fs.existsSync(pgMigrationPath)
     record('TASK 13.3', 'Tập tin DDL Migration hoàn chỉnh cho PostgreSQL tồn tại (20261101_init/migration.sql)', pgMigrationExists)

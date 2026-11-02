@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import path from 'path'
-import fs from 'fs'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth/auth-service'
 import { PermissionService } from '@/lib/auth/permission-service'
-import { VAULT_DIR } from '@/lib/storage/document-storage'
+import { getStorageProvider } from '@/lib/storage/storage-provider'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,19 +37,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: perm.reason || 'Bạn không có quyền tải xuống chứng từ này.' }, { status: 403 })
   }
 
-  // Find physical file in vault
-  const expectedDiskPath = path.join(VAULT_DIR, path.basename(doc.storageKey))
-  const directPath = path.join(VAULT_DIR, doc.fileName)
-
+  const provider = getStorageProvider()
   let fileBuffer: Buffer
   let contentType = 'application/pdf'
 
-  if (fs.existsSync(expectedDiskPath)) {
-    fileBuffer = fs.readFileSync(expectedDiskPath)
-  } else if (fs.existsSync(directPath)) {
-    fileBuffer = fs.readFileSync(directPath)
-  } else {
-    // Generate text content if physical file missing
+  try {
+    const storageResult = await provider.get(doc.storageKey)
+    fileBuffer = storageResult.buffer
+    contentType = storageResult.mimeType || 'application/pdf'
+  } catch {
+    // Trường hợp chứng từ kiểm thử không có file nhị phân vật lý, fallback về văn bản OCR
     const content = doc.ocrResults[0]?.rawText || `TML DOCMANAGER: ${doc.title}\nJob: ${doc.shipmentId}`
     fileBuffer = Buffer.from(content, 'utf-8')
     contentType = 'text/plain;charset=utf-8'
@@ -75,4 +71,3 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   return new Response(fileBuffer, { headers })
 }
-

@@ -8,18 +8,10 @@
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
-import os from 'os'
 import { prisma } from '../prisma'
 
-const isServerless = Boolean(
-  process.env.VERCEL ||
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  process.env.LAMBDA_TASK_ROOT ||
-  process.env.VERCEL_ENV
-)
-
-export const VAULT_DIR = isServerless
-  ? path.join(os.tmpdir(), 'storage_vault')
+export const VAULT_DIR = process.env.STORAGE_LOCAL_PATH
+  ? path.resolve(/*turbopackIgnore: true*/ process.cwd(), process.env.STORAGE_LOCAL_PATH)
   : path.resolve(process.cwd(), 'storage_vault')
 
 // Khởi tạo thư mục vault nếu chưa tồn tại

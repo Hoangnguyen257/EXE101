@@ -11,13 +11,12 @@ import type { DocType } from '@/lib/types'
 import { extractTextFromBuffer, extractLogisticsFields } from '@/lib/ocr/ocr-extractor'
 
 import {
-  VAULT_DIR,
   ALLOWED_EXTENSIONS,
   MAX_FILE_SIZE,
-  validateFileSignature,
   sanitizeFileName,
   validateComprehensiveUpload,
 } from '@/lib/storage/document-storage'
+import { getStorageProvider, generateStorageKey } from '@/lib/storage/storage-provider'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,11 +119,11 @@ export async function POST(req: Request) {
 
       const safeFileName = sanitizeFileName(file.name)
       const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-      const storageKey = `vault/${docId}_${safeFileName}`
-      const diskPath = path.join(VAULT_DIR, `${docId}_${safeFileName}`)
+      const storageKey = generateStorageKey({ extension: ext })
+      const provider = getStorageProvider()
 
-      // Ghi tập tin vật lý vào Storage Vault
-      fs.writeFileSync(diskPath, fileBuffer)
+      // Ghi tập tin thông qua StorageProvider (hỗ trợ lưu bền vững trên Local disk hoặc S3/R2/MinIO)
+      await provider.put(storageKey, fileBuffer, uploadValidation.mimeType || file.type)
 
       const displayLabel = docType === 'OTHER' && customTypeName ? customTypeName : (DOC_TYPE_LABEL[docType as DocType] ?? docType)
       const title = `${displayLabel} ${shipment.jobNo}`
@@ -184,8 +183,8 @@ export async function POST(req: Request) {
       await prisma.storageObject.create({
         data: {
           storageKey,
-          bucket: 'tml-vault',
-          mimeType: file.type || (ext === '.pdf' ? 'application/pdf' : 'image/jpeg'),
+          bucket: provider.driver === 's3' ? (process.env.S3_BUCKET || 'tml-storage-vault') : 'tml-vault',
+          mimeType: uploadValidation.mimeType || file.type || (ext === '.pdf' ? 'application/pdf' : 'image/jpeg'),
           sizeBytes: file.size,
           checksumSha256: checksum,
         },

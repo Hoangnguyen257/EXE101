@@ -31,6 +31,7 @@ model Organization {
   archiveBoxes ArchiveBox[]
   auditLogs    AuditLog[]
   syncEvents   SyncEvent[]
+  pendingUploads PendingUpload[]
 }
 
 model Department {
@@ -276,6 +277,7 @@ model Shipment {
   histories    ShipmentStatusHistory[]
   requirements ShipmentRequirement[]
   notifications Notification[]
+  pendingUploads PendingUpload[]
 }
 
 model ShipmentParticipant {
@@ -531,3 +533,26 @@ model SyncEvent {
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
+
+model PendingUpload {
+  id             String    @id @default(cuid())
+  orgId          String
+  shipmentId     String
+  storageKey     String    @unique
+  fileName       String
+  fileSizeBytes  Int
+  mimeType       String
+  docType        String
+  customTypeName String?
+  docDate        String?
+  uploadedBy     String
+  expiresAt      DateTime
+  confirmedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shipment       Shipment     @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+

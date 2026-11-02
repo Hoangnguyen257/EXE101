@@ -96,3 +96,4 @@ git push origin --force --tags
    - Email: `admin@tml.vn`
    - Mật khẩu ngẫu nhiên (chỉ xuất hiện 1 lần)
 4. Đăng nhập tại `/login`, hệ thống sẽ tự động chuyển hướng sang `/change-password` để thiết lập mật khẩu cá nhân mới trước khi mở quyền sử dụng hệ thống.
+
