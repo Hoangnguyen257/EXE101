@@ -524,7 +524,7 @@ export async function getDashboard() {
       action: a.action as any,
       documentId: a.resourceType === 'document' ? a.resourceId : undefined,
       shipmentId: a.resourceType === 'shipment' ? a.resourceId : undefined,
-      description: `${a.user.name} đã thực hiện ${a.action} trên ${a.resourceType}`,
+      description: `${a.user?.name ?? 'Người dùng'} đã thực hiện ${a.action} trên ${a.resourceType}`,
       at: a.createdAt.toISOString(),
     })),
     alerts: alerts.slice(0, 6),

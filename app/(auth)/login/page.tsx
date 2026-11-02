@@ -53,9 +53,13 @@ export default function LoginPage() {
       toast.success('Đăng nhập thành công', { description: 'Chào mừng bạn quay trở lại hệ thống TML.' })
 
       const targetUrl = data.mustChangePassword ? '/change-password' : '/dashboard'
-      // Làm mới client router cache và điều hướng trang tức thì
-      router.refresh()
-      window.location.href = targetUrl
+      // Điều hướng ngay lập tức vào trang mục tiêu
+      window.location.replace(targetUrl)
+
+      // Phòng vệ giao diện: mở lại trạng thái sau 4 giây nếu trình duyệt trễ kết nối
+      setTimeout(() => {
+        setLoading(false)
+      }, 4000)
     } catch {
       setErrorMessage('Không thể kết nối đến máy chủ xác thực.')
       toast.error('Lỗi kết nối')

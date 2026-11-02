@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
-import { prisma } from '@/lib/prisma'
+import { prisma, ensureDatabaseInitialized } from '@/lib/prisma'
 import { signSessionToken, verifySessionToken } from './jwt'
 
 export const SESSION_COOKIE_NAME = 'tml_session_token'
@@ -271,9 +271,12 @@ export async function login(
   // Thiết lập HttpOnly Cookie an toàn (khi chạy trong HTTP request context)
   try {
     const cookieStore = await cookies()
-    // Chỉ bật Secure khi thực sự chạy trên kết nối HTTPS để tránh mất cookie khi thử nghiệm trên HTTP mạng nội bộ
+    // Bật Secure khi chạy HTTPS trên production/Vercel (trừ localhost thử nghiệm)
     const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || ''
-    const isHttps = process.env.NODE_ENV === 'production' && appUrl.startsWith('https://') && !appUrl.includes('localhost') && !appUrl.includes('127.0.0.1')
+    const isHttps = Boolean(
+      process.env.VERCEL ||
+      (process.env.NODE_ENV === 'production' && appUrl.startsWith('https://') && !appUrl.includes('localhost') && !appUrl.includes('127.0.0.1'))
+    )
     cookieStore.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: isHttps,
@@ -344,6 +347,8 @@ export async function revokeUserSessions(userId: string) {
 
 export async function getSessionUser(tokenOverride?: string | Request): Promise<AuthUser | null> {
   try {
+    await ensureDatabaseInitialized()
+
     let token: string | undefined
 
     if (typeof tokenOverride === 'string') {

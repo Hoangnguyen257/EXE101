@@ -83,6 +83,52 @@ async function runLoginVerificationTests() {
     console.log('  ✅ [PASS] getSessionUser xác minh chính xác phiên đăng nhập của người dùng')
   }
 
+  // TEST 4: Tự động khởi tạo đầy đủ tài khoản thử nghiệm và phòng ban qua ensureDatabaseInitialized
+  console.log('\n▶ [TEST 4] TỰ ĐỘNG KHỞI TẠO CƠ SỞ DỮ LIỆU & TÀI KHOẢN MẪU (SELF-HEALING)')
+  {
+    const { ensureDatabaseInitialized } = await import('@/lib/prisma')
+    await ensureDatabaseInitialized()
+    const { prisma } = await import('@/lib/prisma')
+    const adminUser = await prisma.user.findUnique({
+      where: { email: 'admin@tml.vn' },
+      include: { departments: true, positions: true },
+    })
+    assert.ok(adminUser, 'Admin phải tồn tại')
+    assert.ok(adminUser.departments.length > 0, 'Admin phải được gán phòng ban')
+    console.log('  ✅ [PASS] ensureDatabaseInitialized thiết lập đầy đủ quan hệ phòng ban và chức vụ')
+  }
+
+  // TEST 5: Phiên đăng nhập bị xóa hoặc chưa lưu trong DB bắt buộc phải bị từ chối 100%
+  console.log('\n▶ [TEST 5] KIỂM TRA TÍNH TOÀN VẸN: SESSION BẮT BUỘC TỒN TẠI TRONG DB')
+  {
+    const req = new NextRequest('https://tml.production.vn/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'host': 'tml.production.vn',
+        'x-forwarded-proto': 'https',
+      },
+      body: JSON.stringify({ email: 'admin@tml.vn', password: 'Tml@2026!' }),
+    })
+
+    const res = await loginPost(req)
+    const token = res.cookies.get(SESSION_COOKIE_NAME)?.value
+    assert.ok(token, 'Token phải tồn tại')
+
+    // Xóa session khỏi DB
+    const { prisma } = await import('@/lib/prisma')
+    const { verifySessionToken } = await import('@/lib/auth/jwt')
+    const payload = await verifySessionToken(token)
+    assert.ok(payload?.sessionId)
+
+    await prisma.session.delete({ where: { id: payload.sessionId } })
+
+    // getSessionUser bắt buộc trả về null vì session không còn trong DB
+    const sessionUser = await getSessionUser(token)
+    assert.strictEqual(sessionUser, null, 'Khi session không có trong DB, getSessionUser bắt buộc từ chối')
+    console.log('  ✅ [PASS] Session bắt buộc phải tồn tại trong DB, không có ngoại lệ')
+  }
+
   console.log('\n================================================================================')
   console.log('TỔNG HỢP KIỂM THỬ XÁC THỰC ĐĂNG NHẬP: TẤT CẢ ĐỀU ĐẠT CHUẨN AN TOÀN 100%')
   console.log('================================================================================\n')

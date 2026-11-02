@@ -130,7 +130,7 @@ export async function ensureDatabaseInitialized(): Promise<void> {
       const bcrypt = (await import('bcryptjs')).default
       const defaultHash = await bcrypt.hash('Tml@2026!', 10)
 
-      // Tạo tổ chức, vai trò ADMIN và người dùng admin
+      // 1. Tạo tổ chức
       const org = await prisma.organization.upsert({
         where: { taxCode: '0312456789' },
         update: {},
@@ -144,25 +144,133 @@ export async function ensureDatabaseInitialized(): Promise<void> {
 
       const orgId = org?.id || 'org_tml_default'
 
-      await prisma.role.upsert({
-        where: { code: 'ADMIN' },
-        update: {},
-        create: { code: 'ADMIN', name: 'Quản trị viên hệ thống', description: 'Toàn quyền quản trị' },
-      }).catch(() => {})
+      // 2. Tạo các vai trò
+      const roles = [
+        { code: 'ADMIN', name: 'Quản trị viên hệ thống', description: 'Toàn quyền quản trị tổ chức và người dùng' },
+        { code: 'MANAGER', name: 'Quản lý phòng ban', description: 'Quản lý nhân sự và chứng từ phòng ban' },
+        { code: 'STAFF', name: 'Nhân viên tác nghiệp', description: 'Thực hiện nghiệp vụ chứng từ và lô hàng' },
+      ]
+      for (const r of roles) {
+        await prisma.role.upsert({
+          where: { code: r.code },
+          update: { name: r.name, description: r.description },
+          create: r,
+        }).catch(() => {})
+      }
 
-      await prisma.user.create({
-        data: {
-          orgId,
+      // 3. Tạo phòng ban
+      const depts = [
+        { code: 'MGMT', name: 'Ban Giám đốc' },
+        { code: 'DOC', name: 'Phòng Chứng từ' },
+        { code: 'EXP', name: 'Phòng Xuất khẩu' },
+        { code: 'IMP', name: 'Phòng Nhập khẩu' },
+      ]
+      const deptMap: Record<string, string> = {}
+      for (const d of depts) {
+        const dept = await prisma.department.upsert({
+          where: { orgId_code: { orgId, code: d.code } },
+          update: { name: d.name },
+          create: { orgId, code: d.code, name: d.name },
+        }).catch(() => null)
+        if (dept) deptMap[d.code] = dept.id
+      }
+
+      // 4. Tạo chức vụ
+      const positions = [
+        { name: 'Giám đốc', level: 5 },
+        { name: 'Trưởng phòng', level: 4 },
+        { name: 'Nhân viên', level: 2 },
+      ]
+      const posMap: Record<string, string> = {}
+      for (const p of positions) {
+        const pos = await prisma.position.upsert({
+          where: { orgId_name: { orgId, name: p.name } },
+          update: { level: p.level },
+          create: { orgId, name: p.name, level: p.level },
+        }).catch(() => null)
+        if (pos) posMap[p.name] = pos.id
+      }
+
+      // 5. Tạo người dùng demo chuẩn
+      const usersToSeed = [
+        {
+          id: 'u1',
           email: 'admin@tml.vn',
           name: 'Nguyễn Hoàng',
           initials: 'NH',
-          passwordHash: defaultHash,
           roleCode: 'ADMIN',
-          isActive: true,
-          mustChangePassword: false,
+          deptCode: 'DOC',
+          posName: 'Giám đốc',
+          isManager: true,
         },
-      }).catch(() => {})
-      console.log('[Prisma Auto-Init] Đã nạp thành công tài khoản admin@tml.vn vào CSDL SQLite!')
+        {
+          id: 'u2',
+          email: 'ha.tran@tml.vn',
+          name: 'Trần Thu Hà',
+          initials: 'TH',
+          roleCode: 'MANAGER',
+          deptCode: 'DOC',
+          posName: 'Trưởng phòng',
+          isManager: true,
+        },
+        {
+          id: 'u3',
+          email: 'lan.pham@tml.vn',
+          name: 'Phạm Ngọc Lan',
+          initials: 'NL',
+          roleCode: 'STAFF',
+          deptCode: 'DOC',
+          posName: 'Nhân viên',
+          isManager: false,
+        },
+      ]
+
+      for (const u of usersToSeed) {
+        const user = await prisma.user.upsert({
+          where: { email: u.email },
+          update: {
+            name: u.name,
+            initials: u.initials,
+            roleCode: u.roleCode,
+            isActive: true,
+            mustChangePassword: false,
+          },
+          create: {
+            id: u.id,
+            orgId,
+            email: u.email,
+            passwordHash: defaultHash,
+            name: u.name,
+            initials: u.initials,
+            roleCode: u.roleCode,
+            isActive: true,
+            mustChangePassword: false,
+          },
+        }).catch(() => null)
+
+        if (user && deptMap[u.deptCode]) {
+          await prisma.userDepartment.upsert({
+            where: { userId_departmentId: { userId: user.id, departmentId: deptMap[u.deptCode] } },
+            update: { isPrimary: true, isManager: u.isManager },
+            create: {
+              userId: user.id,
+              departmentId: deptMap[u.deptCode],
+              isPrimary: true,
+              isManager: u.isManager,
+            },
+          }).catch(() => {})
+        }
+
+        if (user && posMap[u.posName]) {
+          await prisma.userPosition.upsert({
+            where: { userId_positionId: { userId: user.id, positionId: posMap[u.posName] } },
+            update: {},
+            create: { userId: user.id, positionId: posMap[u.posName] },
+          }).catch(() => {})
+        }
+      }
+
+      console.log('[Prisma Auto-Init] Đã nạp thành công tài khoản người dùng mẫu vào CSDL SQLite!')
     }
     isDatabaseChecked = true
   } catch (err: any) {
