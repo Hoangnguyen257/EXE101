@@ -254,30 +254,47 @@ model Shipment {
   id           String   @id @default(cuid())
   orgId        String
   jobNo        String   @unique
-  blNo         String
-  customerId   String
+  blNo         String?
+  customerId   String?
   departmentId String?
   mode         String   @default("sea") // sea, air, road
-  origin       String
-  destination  String
-  etd          String
-  eta          String
-  status       String   @default("booking") // booking, in_transit, arrived, on_yard, customs, delivered, closed
+  origin       String?
+  destination  String?
+  etd          String?
+  eta          String?
+  status       String   @default("draft") // draft, booking, in_transit, arrived, on_yard, customs, delivered, closed
+  draftStep    Int      @default(1)
+  extra        Json?
   ownerId      String
   goodsDesc    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  organization Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  customer     Customer                 @relation(fields: [customerId], references: [id])
-  owner        User                     @relation(fields: [ownerId], references: [id])
-  department   Department?              @relation(fields: [departmentId], references: [id])
-  documents    Document[]
-  participants ShipmentParticipant[]
-  histories    ShipmentStatusHistory[]
-  requirements ShipmentRequirement[]
+  organization  Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer      Customer?                @relation(fields: [customerId], references: [id])
+  owner         User                     @relation(fields: [ownerId], references: [id])
+  department    Department?              @relation(fields: [departmentId], references: [id])
+  documents     Document[]
+  goods         ShipmentGoods[]
+  participants  ShipmentParticipant[]
+  histories     ShipmentStatusHistory[]
+  requirements  ShipmentRequirement[]
   notifications Notification[]
   pendingUploads PendingUpload[]
+}
+
+model ShipmentGoods {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  description String
+  hsCode      String
+  orderIndex  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
 }
 
 model ShipmentParticipant {

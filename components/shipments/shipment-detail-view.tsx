@@ -79,6 +79,7 @@ interface ShipmentDetailViewProps {
   documents: DocumentFile[]
   activities: Activity[]
   goods: string
+  goodsList?: { id: string; description: string; hsCode: string; orderIndex: number }[]
   users: User[]
   initialParticipants?: ShipmentParticipantItem[]
 }
@@ -90,6 +91,7 @@ export function ShipmentDetailView({
   documents,
   activities,
   goods,
+  goodsList,
   users,
   initialParticipants,
 }: ShipmentDetailViewProps) {
@@ -362,6 +364,56 @@ export function ShipmentDetailView({
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Shipment Goods & HS Code Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <PackageIcon className="size-4 text-primary" />
+            Bảng kê Hàng hóa & Mã HS Code
+          </CardTitle>
+          <CardDescription>
+            Danh mục chi tiết các mặt hàng vận chuyển và mã phân loại HS Code tương ứng
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {goodsList && goodsList.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                    <th className="py-2.5 px-3 font-medium w-12 text-center">STT</th>
+                    <th className="py-2.5 px-3 font-medium">Mô tả mặt hàng</th>
+                    <th className="py-2.5 px-3 font-medium w-48 text-right pr-4">Mã HS Code</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {goodsList.map((g, idx) => (
+                    <tr key={g.id || idx} className="hover:bg-muted/10 transition-colors">
+                      <td className="py-2.5 px-3 text-center text-xs text-muted-foreground font-mono">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2.5 px-3 font-medium text-foreground">
+                        {g.description}
+                      </td>
+                      <td className="py-2.5 px-3 text-right pr-4">
+                        <Badge variant="outline" className="font-mono bg-background text-xs">
+                          {g.hsCode}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-muted/20 p-3.5 text-sm">
+              <span className="text-muted-foreground">Mô tả hàng hóa chung: </span>
+              <span className="font-medium text-foreground">{goods || 'Hàng hóa thông thường'}</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 

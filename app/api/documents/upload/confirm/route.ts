@@ -161,7 +161,7 @@ export async function POST(req: Request) {
             id: docId,
             orgId: pending.orgId,
             shipmentId: pending.shipment.id,
-            customerId: pending.shipment.customerId,
+            customerId: pending.shipment.customerId!,
             departmentId: pending.shipment.departmentId!,
             type: pending.docType,
             customTypeName: pending.customTypeName,

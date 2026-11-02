@@ -28,8 +28,21 @@ export const REQUIRED_DOC_TYPES: DocType[] = [
  * - Hàng Xuất (VN -> xuất): B/L, Booking, Packing list, C/O, TKHQ, Invoice
  * - Hàng Nhập (Nhập -> VN): Arrival Notice, D/O (eDO), Packing List, C/O, TKHQ, Invoice, B/L
  */
-export function getRequiredDocTypes(shipment: { origin: string; destination?: string }): DocType[] {
-  const isExport = shipment.origin.toUpperCase().includes('VN')
+export function getRequiredDocTypes(shipment: { origin?: string | null; destination?: string | null; mode?: string }): DocType[] {
+  const originStr = shipment.origin || ''
+  const isExport = originStr.toUpperCase().includes('VN')
+  const mode = shipment.mode || 'sea'
+
+  if (mode === 'air') {
+    return isExport
+      ? ['BL', 'BOOKING', 'PACKING_LIST', 'CO', 'CUSTOMS', 'INVOICE']
+      : ['ARRIVAL_NOTICE', 'PACKING_LIST', 'CO', 'CUSTOMS', 'INVOICE', 'BL']
+  }
+
+  if (mode === 'road') {
+    return ['BL', 'PACKING_LIST', 'CUSTOMS', 'INVOICE', 'DELIVERY_ORDER']
+  }
+
   if (isExport) {
     return ['BL', 'BOOKING', 'PACKING_LIST', 'CO', 'CUSTOMS', 'INVOICE']
   }
@@ -41,10 +54,11 @@ export function getRequiredDocTypes(shipment: { origin: string; destination?: st
  * - Hàng Xuất (VN -> xuất): Đặt chỗ, Thông quan, Đã giao
  * - Hàng Nhập (Nhập -> VN): Cập cảng, Trên bãi, Thông quan, Đã giao
  */
-export type ShipmentStatus = 'booking' | 'in_transit' | 'arrived' | 'on_yard' | 'customs' | 'delivered' | 'closed'
+export type ShipmentStatus = 'draft' | 'booking' | 'in_transit' | 'arrived' | 'on_yard' | 'customs' | 'delivered' | 'closed'
 
-export function getValidShipmentStatuses(shipment: { origin: string; destination?: string }): ShipmentStatus[] {
-  const isExport = shipment.origin.toUpperCase().includes('VN')
+export function getValidShipmentStatuses(shipment: { origin?: string | null; destination?: string | null }): ShipmentStatus[] {
+  const originStr = shipment.origin || ''
+  const isExport = originStr.toUpperCase().includes('VN')
   if (isExport) {
     return ['booking', 'customs', 'delivered', 'closed']
   }
@@ -103,6 +117,14 @@ export interface Customer {
   taxCode: string
 }
 
+export interface ShipmentGoodsItem {
+  id: string
+  shipmentId: string
+  description: string
+  hsCode: string
+  orderIndex: number
+}
+
 export interface Shipment {
   id: string
   orgId: string
@@ -116,8 +138,11 @@ export interface Shipment {
   etd: string
   eta: string
   status: ShipmentStatus
+  draftStep?: number
+  extra?: any
   createdAt: string
   ownerId: string
+  goods?: ShipmentGoodsItem[]
 }
 
 export interface DocumentVersion {

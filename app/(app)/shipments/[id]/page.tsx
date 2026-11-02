@@ -63,6 +63,7 @@ export default async function ShipmentDetailPage({
       documents={data.documents}
       activities={data.activities}
       goods={data.goods}
+      goodsList={data.goodsList}
       users={users}
       initialParticipants={data.participants}
     />

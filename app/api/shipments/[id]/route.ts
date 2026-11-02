@@ -28,6 +28,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         where: { isDeleted: false },
         include: { versions: true, ocrResults: { take: 1, orderBy: { extractedAt: 'desc' } } },
       },
+      goods: {
+        orderBy: { orderIndex: 'asc' },
+      },
       requirements: true,
     },
   })

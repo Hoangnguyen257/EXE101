@@ -170,7 +170,7 @@ export async function POST(req: Request) {
               id: docId,
               orgId: sessionUser.orgId,
               shipmentId: shipment.id,
-              customerId: shipment.customerId,
+              customerId: shipment.customerId!,
               departmentId: shipment.departmentId!,
               type: docType,
               customTypeName: customTypeName || null,

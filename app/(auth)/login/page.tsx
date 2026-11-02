@@ -51,11 +51,11 @@ export default function LoginPage() {
 
       toast.success('Đăng nhập thành công', { description: 'Chào mừng bạn quay trở lại hệ thống TML.' })
 
-      if (data.mustChangePassword) {
-        window.location.href = '/change-password'
-      } else {
-        window.location.href = '/dashboard'
-      }
+      const targetUrl = data.mustChangePassword ? '/change-password' : '/dashboard'
+      // Đảm bảo Cookie jar của trình duyệt kịp ghi nhận Set-Cookie trước khi chuyển hướng trang
+      setTimeout(() => {
+        window.location.replace(targetUrl)
+      }, 150)
     } catch {
       setErrorMessage('Không thể kết nối đến máy chủ xác thực.')
       toast.error('Lỗi kết nối')

@@ -5,6 +5,7 @@ import { SHIPMENT_STATUS_LABEL, formatRelative } from '@/lib/labels'
 import type { ShipmentStatus } from '@/lib/types'
 
 const STATUS_VARIANT: Record<ShipmentStatus, 'info' | 'secondary' | 'warning' | 'success' | 'outline'> = {
+  draft: 'outline',
   booking: 'secondary',
   in_transit: 'info',
   arrived: 'info',

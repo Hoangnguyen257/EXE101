@@ -25,6 +25,7 @@ export const DOC_TYPE_SHORT: Record<DocType, string> = {
 }
 
 export const SHIPMENT_STATUS_LABEL: Record<ShipmentStatus, string> = {
+  draft: 'Đang soạn dở',
   booking: 'Đặt chỗ',
   in_transit: 'Đang vận chuyển',
   arrived: 'Cập cảng',

@@ -300,7 +300,7 @@ async function runBusinessIntegrationTests() {
   assert(hitsFuzzy.some((h) => h.id === testDoc.id), 'Smart Search', 'Levenshtein Fuzzy: Gõ sai "Maerskk" vẫn tìm thấy "Maersk Line"')
 
   // 3. Tìm theo B/L
-  const hitsBl = search(searchIndex as any, newShipment.blNo)
+  const hitsBl = search(searchIndex as any, newShipment.blNo || '')
   assert(hitsBl.some((h) => h.id === `sh_${newShipment.id}`), 'Smart Search', 'Tìm kiếm chính xác B/L Number trả về lô hàng phù hợp')
 
   // ============================================================================
