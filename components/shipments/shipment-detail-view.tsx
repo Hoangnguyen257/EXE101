@@ -179,7 +179,7 @@ export function ShipmentDetailView({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            B/L: <span className="font-mono font-medium text-foreground">{shipment.blNo}</span> · Khách hàng: <span className="font-medium text-foreground">{customer.name}</span>
+            B/L: <span className="font-mono font-medium text-foreground">{shipment.blNo || 'Chưa cập nhật'}</span> · Khách hàng: <span className="font-medium text-foreground">{customer?.name || 'Chưa xác định'}</span>
           </p>
         </div>
 
@@ -292,12 +292,12 @@ export function ShipmentDetailView({
               <Separator />
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Số Vận đơn (B/L):</span>
-                <span className="font-mono font-medium">{shipment.blNo}</span>
+                <span className="font-mono font-medium">{shipment.blNo || 'Chưa cập nhật'}</span>
               </div>
               <Separator />
               <div className="flex items-start justify-between gap-4">
                 <span className="text-muted-foreground shrink-0">Hàng hóa & Mã HS:</span>
-                <span className="text-right font-medium">{goods}</span>
+                <span className="text-right font-medium">{goods || 'Hàng hóa thông thường'}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -306,7 +306,7 @@ export function ShipmentDetailView({
                   Tuyến đường:
                 </span>
                 <span className="font-medium text-right">
-                  {shipment.origin} → {shipment.destination}
+                  {shipment.origin || 'Chưa xác định'} → {shipment.destination || 'Chưa xác định'}
                 </span>
               </div>
               <Separator />
@@ -334,17 +334,17 @@ export function ShipmentDetailView({
                   <BuildingIcon className="size-4 text-muted-foreground" />
                   Doanh nghiệp:
                 </span>
-                <span className="text-right font-medium">{customer.name}</span>
+                <span className="text-right font-medium">{customer?.name || 'Chưa xác định'}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Tên viết tắt:</span>
-                <span className="font-medium">{customer.shortName}</span>
+                <span className="font-medium">{customer?.shortName || 'Chưa xác định'}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Mã số thuế:</span>
-                <span className="font-mono font-medium">{customer.taxCode}</span>
+                <span className="font-mono font-medium">{customer?.taxCode || 'Chưa cập nhật'}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -353,8 +353,8 @@ export function ShipmentDetailView({
                   Người phụ trách:
                 </span>
                 <div className="text-right">
-                  <div className="font-medium">{owner.name}</div>
-                  <div className="text-xs text-muted-foreground">{owner.email}</div>
+                  <div className="font-medium">{owner?.name || 'Chưa phân công'}</div>
+                  <div className="text-xs text-muted-foreground">{owner?.email || '—'}</div>
                 </div>
               </div>
               <Separator />

@@ -15,8 +15,8 @@ export async function generateMetadata({
   const data = await getShipment(id)
   if (!data) return { title: 'Lô hàng không tồn tại' }
   return {
-    title: `Lô hàng ${data.shipment.jobNo} - ${data.customer.shortName}`,
-    description: `Hồ sơ chứng từ lô hàng ${data.shipment.jobNo}, vận đơn ${data.shipment.blNo}`,
+    title: `Lô hàng ${data.shipment.jobNo} - ${data.customer?.shortName || 'Chưa xác định'}`,
+    description: `Hồ sơ chứng từ lô hàng ${data.shipment.jobNo}, vận đơn ${data.shipment.blNo || 'Chưa có'}`,
   }
 }
 
@@ -35,6 +35,11 @@ export default async function ShipmentDetailPage({
 
   if (!data) {
     notFound()
+  }
+
+  // Nếu lô hàng đang ở trạng thái draft (soạn dở), chuyển hướng mở lại Wizard đúng bước dở dang
+  if (data.shipment.status === 'draft') {
+    redirect(`/shipments/new?id=${data.shipment.id}&step=${data.shipment.draftStep || 1}`)
   }
 
   // Khắc phục SEC-10: Kiểm tra quyền xem Lô hàng cấp Resource kết hợp thành viên tham gia

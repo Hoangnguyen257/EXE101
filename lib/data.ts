@@ -394,8 +394,8 @@ export async function getUsers() {
   }))
 }
 
-export async function getCurrentUser() {
-  const sessionUser = await getSessionUser()
+export async function getCurrentUser(tokenOverride?: string) {
+  const sessionUser = await getSessionUser(tokenOverride)
   if (sessionUser) {
     return {
       id: sessionUser.id,
@@ -489,9 +489,9 @@ export async function getAlerts(shipmentId?: string, tokenOverride?: string): Pr
   return alerts.sort((a, b) => rank[a.severity] - rank[b.severity] || a.dueDate.localeCompare(b.dueDate))
 }
 
-export async function getDashboard() {
+export async function getDashboard(tokenOverride?: string) {
   const [shipments, alerts, docCount, newDocsThisWeek, activityLogs] = await Promise.all([
-    getShipments(),
+    getShipments(tokenOverride),
     getAlerts(),
     prisma.document.count({ where: { isDeleted: false } }),
     prisma.document.count({
@@ -507,7 +507,8 @@ export async function getDashboard() {
     }),
   ])
 
-  const active = shipments.filter((s) => s.status !== 'closed')
+  const active = shipments.filter((s) => s.status !== 'closed' && s.status !== 'draft')
+  const drafts = shipments.filter((s) => s.status === 'draft')
 
   return {
     kpis: {
@@ -529,6 +530,7 @@ export async function getDashboard() {
     })),
     alerts: alerts.slice(0, 6),
     attention: active.filter((s) => s.missingTypes.length > 0).slice(0, 5),
+    drafts: drafts.slice(0, 5),
   }
 }
 
@@ -562,8 +564,8 @@ export async function getArchive() {
   }
 }
 
-export async function getAuditLogs() {
-  const sessionUser = await getSessionUser()
+export async function getAuditLogs(tokenOverride?: string) {
+  const sessionUser = await getSessionUser(tokenOverride)
   const whereClause: any = {}
 
   if (sessionUser) {
@@ -577,17 +579,74 @@ export async function getAuditLogs() {
     where: whereClause,
     take: 100,
     orderBy: { createdAt: 'desc' },
+    include: {
+      user: { select: { id: true, name: true, initials: true, email: true } },
+    },
   })
 
-  return logs.map((l) => ({
-    id: l.id,
-    userId: l.userId,
-    action: l.action as any,
-    documentId: l.resourceId,
-    ip: l.ipAddress ?? '127.0.0.1',
-    device: l.device ?? 'Chrome · Desktop',
-    at: l.createdAt.toISOString(),
-  }))
+  const docIds = logs.filter((l) => l.resourceType === 'document' || !l.resourceType).map((l) => l.resourceId)
+  const shipmentIds = logs.filter((l) => l.resourceType === 'shipment').map((l) => l.resourceId)
+
+  const [docs, shipments] = await Promise.all([
+    docIds.length > 0
+      ? prisma.document.findMany({
+          where: { id: { in: docIds } },
+          select: { id: true, title: true, fileName: true, isDeleted: true },
+        })
+      : [],
+    shipmentIds.length > 0
+      ? prisma.shipment.findMany({
+          where: { id: { in: shipmentIds } },
+          select: { id: true, jobNo: true, blNo: true },
+        })
+      : [],
+  ])
+
+  const docMap = new Map(docs.map((d) => [d.id, d]))
+  const shipmentMap = new Map(shipments.map((s) => [s.id, s]))
+
+  return logs.map((l) => {
+    const isSystemAction = l.action === 'share_expired_auto_revoked' || l.user?.email === 'system@tml.vn'
+    let resourceName = l.resourceId
+    let resourceLink: string | null = null
+
+    if (l.resourceType === 'document' || !l.resourceType) {
+      const doc = docMap.get(l.resourceId)
+      if (doc) {
+        resourceName = doc.title || doc.fileName
+        if (!doc.isDeleted) resourceLink = `/documents/${doc.id}`
+      } else {
+        resourceName = `Chứng từ #${l.resourceId.slice(0, 8)}`
+      }
+    } else if (l.resourceType === 'shipment') {
+      const s = shipmentMap.get(l.resourceId)
+      if (s) {
+        resourceName = `Lô ${s.jobNo}${s.blNo ? ` (${s.blNo})` : ''}`
+        resourceLink = `/shipments/${s.id}`
+      } else {
+        resourceName = `Lô hàng #${l.resourceId.slice(0, 8)}`
+      }
+    } else if (l.resourceType === 'user') {
+      resourceName = `Tài khoản #${l.resourceId.slice(0, 8)}`
+      resourceLink = '/settings?tab=users'
+    }
+
+    return {
+      id: l.id,
+      userId: isSystemAction ? 'system' : l.userId,
+      userName: isSystemAction ? 'Hệ thống' : l.user?.name ?? 'Không xác định',
+      userInitials: isSystemAction ? 'HT' : l.user?.initials ?? '??',
+      isSystem: isSystemAction,
+      action: l.action as any,
+      resourceType: l.resourceType,
+      resourceName,
+      resourceLink,
+      documentId: l.resourceId,
+      ip: l.ipAddress ?? '127.0.0.1',
+      device: l.device ?? 'Chrome · Desktop',
+      at: l.createdAt.toISOString(),
+    }
+  })
 }
 
 export async function getSettings() {

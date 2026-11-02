@@ -44,15 +44,24 @@ export const useAppContext = useApp
 
 interface AppProviderProps {
   children: React.ReactNode
-  searchIndex: SearchIndex
-  shipments: ShipmentWithProgress[]
-  customers: Customer[]
+  searchIndex?: SearchIndex
+  shipments?: ShipmentWithProgress[]
+  customers?: Customer[]
   currentUser: User
-  users: User[]
+  users?: User[]
 }
 
-export function AppProvider({ children, searchIndex, shipments, customers, currentUser, users }: AppProviderProps) {
+export function AppProvider({
+  children,
+  searchIndex,
+  shipments: initialShipments,
+  customers: initialCustomers,
+  currentUser,
+  users = [],
+}: AppProviderProps) {
   const [searchOpen, setSearchOpen] = useState(false)
+  const [shipmentsList, setShipmentsList] = useState<ShipmentWithProgress[]>(initialShipments || [])
+  const [customersList, setCustomersList] = useState<Customer[]>(initialCustomers || [])
   const [upload, setUpload] = useState<{ open: boolean; preset?: UploadPreset; files?: File[]; key: number }>({
     open: false,
     key: 0,
@@ -60,6 +69,30 @@ export function AppProvider({ children, searchIndex, shipments, customers, curre
   const [shareDoc, setShareDoc] = useState<ShareTarget | null>(null)
   const [sync, setSync] = useState<SyncState>('synced')
   const [tourRun, setTourRun] = useState(0)
+
+  // Nạp danh sách lô hàng & khách hàng theo yêu cầu (on-demand) khi mở hộp thoại Tải lên
+  useEffect(() => {
+    if (upload.open && shipmentsList.length === 0) {
+      fetch('/api/shipments?limit=100')
+        .then((res) => (res.ok ? res.json() : { shipments: [] }))
+        .then((data) => {
+          if (Array.isArray(data.shipments)) {
+            setShipmentsList(data.shipments)
+          }
+        })
+        .catch(() => {})
+    }
+    if (upload.open && customersList.length === 0) {
+      fetch('/api/customers')
+        .then((res) => (res.ok ? res.json() : { customers: [] }))
+        .then((data) => {
+          if (Array.isArray(data.customers)) {
+            setCustomersList(data.customers)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [upload.open, shipmentsList.length, customersList.length])
 
   const markSyncing = useCallback(() => {
     setSync('syncing')
@@ -109,8 +142,8 @@ export function AppProvider({ children, searchIndex, shipments, customers, curre
     () => ({
       currentUser,
       users,
-      shipments,
-      customers,
+      shipments: shipmentsList,
+      customers: customersList,
       openSearch: () => setSearchOpen(true),
       openUpload,
       openShare: setShareDoc,
@@ -118,7 +151,7 @@ export function AppProvider({ children, searchIndex, shipments, customers, curre
       sync,
       markSyncing,
     }),
-    [currentUser, users, shipments, customers, openUpload, sync, markSyncing],
+    [currentUser, users, shipmentsList, customersList, openUpload, sync, markSyncing],
   )
 
   return (
@@ -131,8 +164,8 @@ export function AppProvider({ children, searchIndex, shipments, customers, curre
         onOpenChange={(open) => setUpload((u) => ({ ...u, open }))}
         preset={upload.preset}
         initialFiles={upload.files}
-        shipments={shipments}
-        customers={customers}
+        shipments={shipmentsList}
+        customers={customersList}
         onUploaded={markSyncing}
       />
       <ShareDialog doc={shareDoc} onOpenChange={(open) => !open && setShareDoc(null)} />

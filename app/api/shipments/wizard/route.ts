@@ -353,55 +353,63 @@ export async function POST(req: Request) {
         currentShipment.destination || ''
       )
 
-      // Thực hiện trong một transaction nguyên tử (Atomic)
-      const updatedShipment = await prisma.$transaction(async (tx) => {
-        // 1. Cập nhật shipment
-        const s = await tx.shipment.update({
-          where: { id: shipmentId },
-          data: {
-            customerId: targetCustomerId || null,
-            blNo: blNo ? blNo.trim() : null,
-            etd: etd ? etd.trim() : null,
-            eta: eta ? eta.trim() : null,
-            goodsDesc: normalizedGoods.length > 0 ? normalizedGoods[0].description : currentShipment.goodsDesc,
-            extra: extraData,
-            draftStep: isDraftSave ? 2 : 3, // Nếu đạt chuẩn thì mở bước 3
-          },
-          include: { customer: true },
-        })
-
-        // 2. Thay thế bảng hàng hóa
-        await tx.shipmentGoods.deleteMany({
-          where: { shipmentId },
-        })
-
-        if (normalizedGoods.length > 0) {
-          await tx.shipmentGoods.createMany({
-            data: normalizedGoods.map((g) => ({
-              shipmentId,
-              description: g.description,
-              hsCode: g.hsCode,
-              orderIndex: g.orderIndex,
-            })),
-          })
-        }
-
-        // 3. Khởi tạo/cập nhật checklist requirements
-        for (const docType of checklistTypes) {
-          await tx.shipmentRequirement.upsert({
-            where: { shipmentId_docType: { shipmentId, docType } },
-            update: {},
-            create: {
-              shipmentId,
-              docType,
-              isMandatory: true,
-              status: 'MISSING',
+      // Thực hiện trong một transaction nguyên tử (Atomic) với timeout bảo vệ 15s
+      const updatedShipment = await prisma.$transaction(
+        async (tx) => {
+          // 1. Cập nhật shipment
+          const s = await tx.shipment.update({
+            where: { id: shipmentId },
+            data: {
+              customerId: targetCustomerId || null,
+              blNo: blNo ? blNo.trim() : null,
+              etd: etd ? etd.trim() : null,
+              eta: eta ? eta.trim() : null,
+              goodsDesc: normalizedGoods.length > 0 ? normalizedGoods[0].description : currentShipment.goodsDesc,
+              extra: extraData,
+              draftStep: isDraftSave ? 2 : 3, // Nếu đạt chuẩn thì mở bước 3
             },
+            include: { customer: true },
           })
-        }
 
-        return s
-      })
+          // 2. Thay thế bảng hàng hóa
+          await tx.shipmentGoods.deleteMany({
+            where: { shipmentId },
+          })
+
+          if (normalizedGoods.length > 0) {
+            await tx.shipmentGoods.createMany({
+              data: normalizedGoods.map((g) => ({
+                shipmentId,
+                description: g.description,
+                hsCode: g.hsCode,
+                orderIndex: g.orderIndex,
+              })),
+            })
+          }
+
+          // 3. Khởi tạo/cập nhật checklist requirements (tối ưu hóa: 1 SELECT kiểm tra trùng + 1 BATCH INSERT)
+          const existingReqs = await tx.shipmentRequirement.findMany({
+            where: { shipmentId },
+            select: { docType: true },
+          })
+          const existingDocTypes = new Set(existingReqs.map((r) => r.docType))
+          const newReqs = checklistTypes.filter((dt) => !existingDocTypes.has(dt))
+
+          if (newReqs.length > 0) {
+            await tx.shipmentRequirement.createMany({
+              data: newReqs.map((docType) => ({
+                shipmentId,
+                docType,
+                isMandatory: true,
+                status: 'MISSING',
+              })),
+            })
+          }
+
+          return s
+        },
+        { timeout: 15000, maxWait: 5000 }
+      )
 
       return NextResponse.json({
         success: true,
@@ -449,43 +457,50 @@ export async function POST(req: Request) {
       }
 
       if (!shipment.goods || shipment.goods.length === 0) {
-        return NextResponse.json({ error: 'Lô hàng chưa có dữ liệu hàng hóa và mã HS Code. Vui lòng quay lại Bước 2.' }, { status: 400 })
+        return NextResponse.json({ error: 'Lô hàng chưa có dữ liệu hàng hóa. Vui lòng quay lại Bước 2.' }, { status: 400 })
       }
 
       // Chuyển trạng thái từ draft sang booking
       const newStatus = 'booking'
       const oldStatus = shipment.status
 
-      const finalShipment = await prisma.$transaction(async (tx) => {
-        const updated = await tx.shipment.update({
-          where: { id: shipmentId },
-          data: {
-            status: newStatus,
-            draftStep: 3,
-          },
-          include: {
-            customer: true,
-            goods: { orderBy: { orderIndex: 'asc' } },
-            requirements: true,
-            documents: true,
-          },
-        })
-
-        // Ghi lại lịch sử thay đổi trạng thái nếu trước đó là draft
-        if (oldStatus !== newStatus) {
-          await tx.shipmentStatusHistory.create({
+      const finalShipment = await prisma.$transaction(
+        async (tx) => {
+          const updated = await tx.shipment.update({
+            where: { id: shipmentId },
             data: {
-              shipmentId,
-              oldStatus,
-              newStatus,
-              changedBy: sessionUser.id,
-              note: finalizeLater ? 'Lô hàng hoàn tất sau, lưu trữ tài liệu đang thiếu' : 'Hoàn tất khởi tạo lô hàng từ Wizard',
+              status: newStatus,
+              draftStep: 3,
+            },
+            include: {
+              customer: true,
+              goods: { orderBy: { orderIndex: 'asc' } },
+              requirements: true,
+              documents: true,
             },
           })
-        }
 
-        // Ghi Audit Log
-        await tx.auditLog.create({
+          // Ghi lại lịch sử thay đổi trạng thái nếu trước đó là draft
+          if (oldStatus !== newStatus) {
+            await tx.shipmentStatusHistory.create({
+              data: {
+                shipmentId,
+                oldStatus,
+                newStatus,
+                changedBy: sessionUser.id,
+                note: finalizeLater ? 'Lô hàng hoàn tất sau, lưu trữ tài liệu đang thiếu' : 'Hoàn tất khởi tạo lô hàng từ Wizard',
+              },
+            })
+          }
+
+          return updated
+        },
+        { timeout: 15000, maxWait: 5000 }
+      )
+
+      // Ghi Audit Log & Sync Event ngoài transaction để tránh giữ khóa DB
+      try {
+        await prisma.auditLog.create({
           data: {
             orgId: sessionUser.orgId,
             userId: sessionUser.id,
@@ -494,18 +509,17 @@ export async function POST(req: Request) {
             resourceId: shipmentId,
             status: 'SUCCESS',
             diffJson: JSON.stringify({
-              jobNo: updated.jobNo,
-              mode: updated.mode,
-              origin: updated.origin,
-              destination: updated.destination,
-              goodsCount: updated.goods.length,
+              jobNo: finalShipment.jobNo,
+              mode: finalShipment.mode,
+              origin: finalShipment.origin,
+              destination: finalShipment.destination,
+              goodsCount: finalShipment.goods.length,
               status: newStatus,
             }),
           },
         })
 
-        // Ghi Sync Event
-        await tx.syncEvent.create({
+        await prisma.syncEvent.create({
           data: {
             orgId: sessionUser.orgId,
             eventType: 'SHIPMENT_UPDATED',
@@ -513,15 +527,15 @@ export async function POST(req: Request) {
             entityId: shipmentId,
             payload: JSON.stringify({
               action: 'created_from_wizard',
-              jobNo: updated.jobNo,
-              departmentId: updated.departmentId,
+              jobNo: finalShipment.jobNo,
+              departmentId: finalShipment.departmentId,
               status: newStatus,
             }),
           },
         })
-
-        return updated
-      })
+      } catch (logErr) {
+        console.warn('Lỗi ghi audit/sync event sau khi lưu lô hàng:', logErr)
+      }
 
       return NextResponse.json({
         success: true,

@@ -155,15 +155,16 @@ export function ShipmentsTable({
           <TableBody>
             {filtered.map((s) => {
               const ModeIcon = MODE_ICON[s.mode]
+              const targetUrl = s.status === 'draft' ? `/shipments/new?id=${s.id}&step=${s.draftStep || 1}` : `/shipments/${s.id}`
               return (
-                <TableRow key={s.id} className="cursor-pointer" onClick={() => router.push(`/shipments/${s.id}`)}>
+                <TableRow key={s.id} className="cursor-pointer" onClick={() => router.push(targetUrl)}>
                   <TableCell className="pl-4">
-                    <Link href={`/shipments/${s.id}`} className="flex flex-col gap-0.5 hover:text-primary" onClick={(e) => e.stopPropagation()}>
+                    <Link href={targetUrl} className="flex flex-col gap-0.5 hover:text-primary" onClick={(e) => e.stopPropagation()}>
                       <span className="font-mono text-sm font-medium">{s.jobNo}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{s.blNo}</span>
+                      <span className="font-mono text-xs text-muted-foreground">{s.blNo || (s.status === 'draft' ? 'Đang soạn nháp' : 'Chưa có B/L')}</span>
                     </Link>
                   </TableCell>
-                  <TableCell className="max-w-40 truncate">{s.customerName}</TableCell>
+                  <TableCell className="max-w-40 truncate">{s.customerName || 'Chưa xác định'}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     <div className="flex items-center gap-2 text-sm">
                       <ModeIcon className="size-4 shrink-0 text-muted-foreground" aria-label={MODE_LABEL[s.mode]} />

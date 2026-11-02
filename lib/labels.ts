@@ -53,7 +53,8 @@ export const ACTION_LABEL: Record<PermissionAction, string> = {
 export const AUDIT_ACTION_LABEL: Record<string, string> = {
   view: 'Xem',
   download: 'Tải xuống',
-  edit: 'Chỉnh sửa',
+  edit: 'Sửa',
+  update: 'Sửa',
   delete: 'Xóa',
   upload: 'Tải lên',
   share: 'Chia sẻ',
@@ -61,9 +62,47 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   login: 'Đăng nhập',
   logout: 'Đăng xuất',
   approve: 'Phê duyệt',
-  create: 'Tạo mới',
-  update: 'Cập nhật',
+  create: 'Tạo',
+  permission_change: 'Đổi phân quyền',
   share_expired_auto_revoked: 'Thu hồi link quá hạn',
+}
+
+/**
+ * Định dạng ngày giờ chuẩn Việt Nam (Asia/Ho_Chi_Minh):
+ * Hiển thị rõ ràng: 02/11/2026 · 3:45 CH (Chiều)
+ */
+export function formatAuditTimestamp(iso?: string | null): string {
+  if (!iso || !iso.trim()) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+
+  const datePart = new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(d)
+
+  const hour = Number(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour: 'numeric',
+      hour12: false,
+    }).format(d)
+  )
+
+  const minute = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    minute: '2-digit',
+  })
+    .format(d)
+    .padStart(2, '0')
+
+  const period = hour < 12 ? 'Sáng' : hour < 18 ? 'Chiều' : 'Tối'
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12
+  const ampm = hour < 12 ? 'SA' : 'CH'
+
+  return `${datePart} · ${hour12}:${minute} ${ampm} (${period})`
 }
 
 const dateFmt = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -75,13 +114,27 @@ const dateTimeFmt = new Intl.DateTimeFormat('vi-VN', {
   minute: '2-digit',
 })
 
-export const formatDate = (iso: string) => dateFmt.format(new Date(iso))
-export const formatDateTime = (iso: string) => dateTimeFmt.format(new Date(iso))
+export const formatDate = (iso?: string | null) => {
+  if (!iso || !iso.trim()) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return dateFmt.format(d)
+}
+
+export const formatDateTime = (iso?: string | null) => {
+  if (!iso || !iso.trim()) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return dateTimeFmt.format(d)
+}
 
 export const NOW = new Date('2026-10-19T09:30:00+07:00')
 
-export function formatRelative(iso: string, now: Date = NOW) {
-  const diff = (now.getTime() - new Date(iso).getTime()) / 1000
+export function formatRelative(iso?: string | null, now: Date = new Date()) {
+  if (!iso || !iso.trim()) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  const diff = (now.getTime() - d.getTime()) / 1000
   if (diff < 60) return 'vừa xong'
   if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`
   if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`
@@ -89,8 +142,11 @@ export function formatRelative(iso: string, now: Date = NOW) {
   return formatDate(iso)
 }
 
-export function daysUntil(iso: string, now: Date = NOW) {
-  return Math.ceil((new Date(iso).getTime() - now.getTime()) / 86400000)
+export function daysUntil(iso?: string | null, now: Date = new Date()) {
+  if (!iso || !iso.trim()) return 0
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return 0
+  return Math.ceil((d.getTime() - now.getTime()) / 86400000)
 }
 
 export function formatSize(kb: number) {

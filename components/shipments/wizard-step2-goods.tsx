@@ -180,9 +180,7 @@ export function WizardStep2Goods({
         if (!item.description || !item.description.trim()) {
           errs[`goods_${idx}_description`] = 'Mô tả hàng hóa không được để trống.'
         }
-        if (!item.hsCode || !item.hsCode.trim()) {
-          errs[`goods_${idx}_hsCode`] = 'Mã HS Code không được để trống.'
-        } else {
+        if (item.hsCode && item.hsCode.trim()) {
           const hsCheck = normalizeAndValidateHsCode(item.hsCode)
           if (!hsCheck.valid) {
             errs[`goods_${idx}_hsCode`] = hsCheck.message || 'Mã HS Code không hợp lệ.'
@@ -367,7 +365,7 @@ export function WizardStep2Goods({
                   Danh mục Hàng hóa & Mã HS Code <span className="text-destructive">*</span>
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Tối thiểu 1 dòng hàng. Mã HS Code gồm 4-10 chữ số (cho phép nhập dấu chấm e.g. 0304.62.00).
+                  Tối thiểu 1 dòng hàng. Mô tả hàng hóa là bắt buộc; Mã HS Code không bắt buộc (nếu có: 4-10 chữ số, cho phép dấu chấm).
                 </p>
               </div>
               <Button
@@ -391,7 +389,7 @@ export function WizardStep2Goods({
                   <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                     <th className="py-2.5 px-3 font-medium w-12 text-center">STT</th>
                     <th className="py-2.5 px-3 font-medium">Mô tả hàng hóa <span className="text-destructive">*</span></th>
-                    <th className="py-2.5 px-3 font-medium w-48 sm:w-60">Mã HS Code <span className="text-destructive">*</span></th>
+                    <th className="py-2.5 px-3 font-medium w-48 sm:w-60">Mã HS Code <span className="text-muted-foreground font-normal">(tùy chọn)</span></th>
                     <th className="py-2.5 px-3 font-medium w-14 text-center">Xóa</th>
                   </tr>
                 </thead>
@@ -415,7 +413,7 @@ export function WizardStep2Goods({
                         </td>
                         <td className="py-2 px-3">
                           <Input
-                            placeholder="0304.62.00"
+                            placeholder="Không bắt buộc (VD: 0304.62.00)"
                             value={row.hsCode}
                             onChange={(e) => handleGoodsChange(idx, 'hsCode', e.target.value)}
                             disabled={loading}

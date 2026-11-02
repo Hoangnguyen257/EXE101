@@ -26,7 +26,16 @@ export function validateVietnameseTaxCode(taxCode: string): { valid: boolean; me
     }
   }
 
-  const digits = match[1].split('').map(Number)
+  const tenDigits = match[1]
+  // Từ chối MST toàn số 0 hoặc toàn một chữ số lặp (ví dụ 0000000000, 1111111111)
+  if (/^(\d)\1{9}$/.test(tenDigits)) {
+    return {
+      valid: false,
+      message: 'Mã số thuế không hợp lệ (không thể là chuỗi số 0 hoặc chữ số lặp lại).',
+    }
+  }
+
+  const digits = tenDigits.split('').map(Number)
   const weights = [31, 29, 23, 19, 17, 13, 7, 5, 3]
 
   const sum = digits.slice(0, 9).reduce((acc, digit, idx) => acc + digit * weights[idx], 0)
@@ -45,13 +54,14 @@ export function validateVietnameseTaxCode(taxCode: string): { valid: boolean; me
 
 /**
  * Chuẩn hóa và kiểm tra mã HS Code:
+ * - Mã HS Code là tùy chọn (không bắt buộc).
  * - Cho phép nhập dấu chấm (e.g. "0304.62.00")
  * - Chuẩn hóa bỏ dấu chấm ("03046200")
- * - Độ dài hợp lệ: từ 4 đến 10 chữ số
+ * - Độ dài hợp lệ (nếu có nhập): từ 4 đến 10 chữ số
  */
-export function normalizeAndValidateHsCode(hsCode: string): { valid: boolean; normalized: string; message?: string } {
-  if (!hsCode || typeof hsCode !== 'string') {
-    return { valid: false, normalized: '', message: 'Mã HS Code không được để trống.' }
+export function normalizeAndValidateHsCode(hsCode?: string | null): { valid: boolean; normalized: string; message?: string } {
+  if (!hsCode || typeof hsCode !== 'string' || !hsCode.trim()) {
+    return { valid: true, normalized: '' }
   }
 
   const clean = hsCode.replace(/\./g, '').trim()
@@ -129,7 +139,7 @@ export function generateShipmentRequirements(mode: 'sea' | 'air' | 'road', origi
 export const ShipmentGoodsItemSchema = z.object({
   id: z.string().optional(),
   description: z.string().min(1, 'Mô tả hàng hóa không được để trống'),
-  hsCode: z.string().min(1, 'Mã HS Code không được để trống'),
+  hsCode: z.string().optional().default(''),
   orderIndex: z.number().int().default(0),
 })
 

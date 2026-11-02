@@ -64,17 +64,38 @@ export async function cleanupExpiredShareLinks(): Promise<CleanupResult> {
 
       revokedShareIds.push(share.id)
 
-      // 3. Ghi vết kiểm toán (Preserve Full Audit Trail)
+      // 3. Ghi vết kiểm toán với tác nhân là "Hệ thống" (System Actor)
       try {
+        let systemUser = await prisma.user.findFirst({
+          where: { orgId: share.document.orgId, email: 'system@tml.vn' },
+        })
+        if (!systemUser) {
+          systemUser = await prisma.user.upsert({
+            where: { email: 'system@tml.vn' },
+            update: {},
+            create: {
+              orgId: share.document.orgId,
+              email: 'system@tml.vn',
+              name: 'Hệ thống',
+              passwordHash: 'SYSTEM_AUTOMATION_NO_LOGIN',
+              roleCode: 'ADMIN',
+              initials: 'HT',
+              isActive: true,
+            },
+          })
+        }
+
         await prisma.auditLog.create({
           data: {
             orgId: share.document.orgId,
-            userId: share.createdBy,
+            userId: systemUser.id, // Ghi nhận tác nhân là Hệ thống tự động
             action: 'share_expired_auto_revoked',
             resourceType: 'document_share',
             resourceId: share.id,
             status: 'SUCCESS',
             diffJson: JSON.stringify({
+              actor: 'Hệ thống (Tự động thu hồi quá hạn)',
+              originalCreatedBy: share.createdBy,
               reason: isTimeExpired ? 'EXPIRED_BY_TIME' : 'EXPIRED_BY_VIEW_LIMIT',
               expiresAt: share.expiresAt,
               viewCount: share.viewCount,

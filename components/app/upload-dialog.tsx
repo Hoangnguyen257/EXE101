@@ -2,7 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { CameraIcon, CloudUploadIcon, FileTextIcon, SparklesIcon, Trash2Icon, WandSparklesIcon } from 'lucide-react'
+import {
+  AlertCircleIcon,
+  CameraIcon,
+  CloudUploadIcon,
+  FileTextIcon,
+  SparklesIcon,
+  Trash2Icon,
+  WandSparklesIcon,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -32,7 +40,7 @@ interface PendingFile {
   type: DocType
   customTypeName?: string
   confidence: number
-  shipmentId: string
+  suggestedShipment?: ShipmentWithProgress
   progress: number
 }
 
@@ -49,20 +57,25 @@ const TYPE_RULES: { type: DocType; pattern: RegExp; confidence: number }[] = [
 
 export function suggestDocType(fileName: string): { type: DocType; confidence: number } {
   const base = fileName.replace(/\.[a-z0-9]+$/i, '')
-  for (const rule of TYPE_RULES) if (rule.pattern.test(base)) return { type: rule.type, confidence: rule.confidence }
+  for (const rule of TYPE_RULES) {
+    if (rule.pattern.test(base)) return { type: rule.type, confidence: rule.confidence }
+  }
   return { type: 'OTHER', confidence: 40 }
 }
 
 function suggestShipment(fileName: string, shipments: ShipmentWithProgress[]) {
   const n = fileName.toUpperCase().replace(/[^A-Z0-9]/g, '')
-  return shipments.find((s) => n.includes(s.jobNo.replace(/[^A-Z0-9]/g, '')) || n.includes(s.blNo.replace(/[^A-Z0-9]/g, '')))
+  return shipments.find((s) => {
+    const jobKey = s.jobNo.replace(/[^A-Z0-9]/g, '')
+    const blKey = (s.blNo || '').replace(/[^A-Z0-9]/g, '')
+    return (jobKey && n.includes(jobKey)) || (blKey && n.includes(blKey))
+  })
 }
 
 const SAMPLE_FILES = [
-  { name: 'BL_ONEYSGNA77512_final.pdf', size: 412 * 1024 },
-  { name: 'Invoice_TML-SE2610-0147.pdf', size: 236 * 1024 },
+  { name: 'BL_MAEU262104471.pdf', size: 412 * 1024 },
+  { name: 'Invoice_INV-2026-VN-994.pdf', size: 236 * 1024 },
   { name: 'DO_COSU6421887310.pdf', size: 188 * 1024 },
-  { name: 'scan_0931.pdf', size: 1520 * 1024 },
 ]
 
 const DOC_TYPE_ITEMS = (Object.keys(DOC_TYPE_LABEL) as DocType[]).map((t) => ({
@@ -80,41 +93,71 @@ interface UploadDialogProps {
   onUploaded: () => void
 }
 
-export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipments, customers, onUploaded }: UploadDialogProps) {
+const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024 // 25MB
+
+export function UploadDialog({
+  open,
+  onOpenChange,
+  preset,
+  initialFiles,
+  shipments,
+  customers,
+  onUploaded,
+}: UploadDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<PendingFile[]>([])
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [docDate, setDocDate] = useState('2026-10-19')
-  const [defaultShipment, setDefaultShipment] = useState(preset?.shipmentId ?? '')
+  const [selectedShipmentId, setSelectedShipmentId] = useState(preset?.shipmentId ?? '')
 
-  const shipmentItems = shipments.map((s) => ({ value: s.id, label: `${s.jobNo} · ${s.customerName}` }))
+  useEffect(() => {
+    if (preset?.shipmentId) {
+      setSelectedShipmentId(preset.shipmentId)
+    }
+  }, [preset?.shipmentId])
+
+  const shipmentItems = shipments.map((s) => ({
+    value: s.id,
+    label: `${s.jobNo} · ${s.customerName || 'Chưa xác định'}${s.blNo ? ` · B/L: ${s.blNo}` : ''}`,
+  }))
+
   const rawFilesRef = useRef<Map<string, File>>(new Map())
 
   const addFiles = (list: (File | { name: string; size: number })[]) => {
-    setFiles((prev) => [
-      ...prev,
-      ...list.map((f, i) => {
-        const id = `${Date.now()}_${i}_${f.name}`
-        if ('slice' in f && typeof (f as any).slice === 'function') {
-          rawFilesRef.current.set(id, f as File)
-        } else {
-          const blob = new Blob([`TML LOGISTICS DOCUMENT\nFile: ${f.name}\nSize: ${f.size}`], { type: 'application/pdf' })
-          const mockFile = new File([blob], f.name, { type: 'application/pdf' })
-          rawFilesRef.current.set(id, mockFile)
-        }
-        const suggestion = preset?.docType && list.length === 1 ? { type: preset.docType, confidence: 100 } : suggestDocType(f.name)
-        return {
-          id,
-          name: f.name,
-          sizeKb: Math.max(1, Math.round(f.size / 1024)),
-          type: suggestion.type,
-          confidence: suggestion.confidence,
-          shipmentId: suggestShipment(f.name, shipments)?.id ?? defaultShipment,
-          progress: 0,
-        }
-      }),
-    ])
+    const validItems: PendingFile[] = []
+
+    for (let i = 0; i < list.length; i++) {
+      const f = list[i]
+      if (f.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(`Tập tin "${f.name}" (${formatSize(Math.round(f.size / 1024))}) vượt quá giới hạn tối đa 25MB.`)
+        continue
+      }
+
+      const id = `${Date.now()}_${i}_${f.name}`
+      if ('slice' in f && typeof (f as any).slice === 'function') {
+        rawFilesRef.current.set(id, f as File)
+      } else {
+        const blob = new Blob([`TML LOGISTICS DOCUMENT\nFile: ${f.name}\nSize: ${f.size}`], { type: 'application/pdf' })
+        const mockFile = new File([blob], f.name, { type: 'application/pdf' })
+        rawFilesRef.current.set(id, mockFile)
+      }
+
+      const suggestion = preset?.docType && list.length === 1 ? { type: preset.docType, confidence: 100 } : suggestDocType(f.name)
+      const suggested = suggestShipment(f.name, shipments)
+
+      validItems.push({
+        id,
+        name: f.name,
+        sizeKb: Math.max(1, Math.round(f.size / 1024)),
+        type: suggestion.type,
+        confidence: suggestion.confidence,
+        suggestedShipment: suggested,
+        progress: 0,
+      })
+    }
+
+    setFiles((prev) => [...prev, ...validItems])
   }
 
   const seeded = useRef(false)
@@ -128,76 +171,113 @@ export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipmen
   const update = (id: string, patch: Partial<PendingFile>) =>
     setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
 
-  const applyDefaultShipment = (id: string) => {
-    setDefaultShipment(id)
-    setFiles((prev) => prev.map((f) => (f.shipmentId ? f : { ...f, shipmentId: id })))
-  }
-
-  const unassigned = files.filter((f) => !f.shipmentId).length
-
   const handleUpload = async () => {
+    if (!selectedShipmentId) {
+      toast.error('Vui lòng chọn Lô hàng / Job trước khi tải lên.')
+      return
+    }
+
     setUploading(true)
     let uploadSuccessCount = 0
 
-    const byShipment = new Map<string, PendingFile[]>()
-    for (const f of files) {
-      if (!f.shipmentId) continue
-      const list = byShipment.get(f.shipmentId) ?? []
-      list.push(f)
-      byShipment.set(f.shipmentId, list)
-    }
-
     try {
-      for (const [sId, group] of byShipment.entries()) {
+      for (const item of files) {
         const formData = new FormData()
-        formData.set('shipmentId', sId)
+        formData.set('shipmentId', selectedShipmentId)
         formData.set('docDate', docDate)
+        formData.set('docType', item.type)
+        if (item.customTypeName) {
+          formData.set('customTypeName', item.customTypeName)
+        }
 
-        for (const item of group) {
-          formData.set('docType', item.type)
-          if (item.customTypeName) formData.set('customTypeName', item.customTypeName)
-          const realFile = rawFilesRef.current.get(item.id)
-          if (realFile) {
-            formData.append('files', realFile)
-          }
+        const realFile = rawFilesRef.current.get(item.id)
+        if (realFile) {
+          formData.append('files', realFile)
         }
 
         const res = await fetch('/api/documents/upload', {
           method: 'POST',
+          headers: {
+            'x-csrf-protection': '1',
+          },
           body: formData,
         })
 
         if (res.ok) {
-          uploadSuccessCount += group.length
-          setFiles((prev) =>
-            prev.map((f) => (group.some((g) => g.id === f.id) ? { ...f, progress: 100 } : f))
-          )
+          uploadSuccessCount++
+          setFiles((prev) => prev.map((f) => (f.id === item.id ? { ...f, progress: 100 } : f)))
+        } else {
+          const errData = await res.json().catch(() => ({}))
+          toast.error(`Lỗi tải lên tập tin "${item.name}":`, { description: errData.error || 'Máy chủ từ chối.' })
         }
       }
 
+      if (uploadSuccessCount > 0) {
+        toast.success(`Đã tải lên ${uploadSuccessCount}/${files.length} chứng từ thành công!`)
+        onUploaded()
+        onOpenChange(false)
+        setFiles([])
+      }
+    } catch (err: any) {
+      console.error('Lỗi khi gửi upload:', err)
+      toast.error('Lỗi kết nối khi tải chứng từ lên.')
+    } finally {
       setUploading(false)
-      onUploaded()
-      toast.success(`Đã tải lên ${uploadSuccessCount} chứng từ thành công!`, {
-        description: 'Tài liệu đã được lưu trữ trong kho dữ liệu và cập nhật hồ sơ lô hàng.',
-      })
-      onOpenChange(false)
-    } catch {
-      setUploading(false)
-      toast.error('Có lỗi xảy ra khi tải tài liệu lên máy chủ.')
     }
   }
 
+  const activeShipment = shipments.find((s) => s.id === selectedShipmentId)
+  const activeCustomer = customers.find((c) => c.id === activeShipment?.customerId)
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !uploading && onOpenChange(o)}>
-      <DialogContent className="sm:max-w-3xl">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Tải lên chứng từ</DialogTitle>
           <DialogDescription>
-            Kéo thả nhiều file cùng lúc. Hệ thống tự nhận diện loại chứng từ và lô hàng từ tên file.
+            Đính kèm chứng từ vào lô hàng. Hệ thống tự động phân loại và trích xuất thông tin.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex max-h-[65vh] flex-col gap-4 overflow-y-auto pr-1">
+          {/* Ô CHỌN LÔ HÀNG DUY NHẤT CHO CẢ LƯỢT TẢI */}
+          <FieldGroup className="grid gap-4 sm:grid-cols-2 rounded-lg border bg-muted/20 p-3.5">
+            <Field className="sm:col-span-1">
+              <FieldLabel htmlFor="upload-single-shipment">
+                Gán cho Job / Lô hàng <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Select
+                items={shipmentItems}
+                value={selectedShipmentId || null}
+                onValueChange={(v) => v && setSelectedShipmentId(v as string)}
+              >
+                <SelectTrigger id="upload-single-shipment" className={cn('w-full', !selectedShipmentId && 'border-amber-500')}>
+                  <SelectValue placeholder="-- Chọn lô hàng áp dụng --" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {shipmentItems.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {activeCustomer && (
+                <p className="text-xs text-muted-foreground mt-1 truncate">
+                  Doanh nghiệp: <span className="font-medium text-foreground">{activeCustomer.name}</span>
+                </p>
+              )}
+            </Field>
+
+            <Field className="sm:col-span-1">
+              <FieldLabel htmlFor="upload-date">Ngày chứng từ</FieldLabel>
+              <Input id="upload-date" type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} />
+            </Field>
+          </FieldGroup>
+
+          {/* DROPZONE: CHỈ NHẬN PDF, JPG, PNG TỐI ĐA 25MB */}
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
@@ -214,21 +294,23 @@ export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipmen
             }}
             disabled={uploading}
             className={cn(
-              'flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors',
-              dragging ? 'border-primary bg-accent' : 'border-border bg-muted/40 hover:border-primary/50 hover:bg-accent/50',
+              'flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-7 text-center transition-colors',
+              dragging ? 'border-primary bg-accent' : 'border-border bg-muted/40 hover:border-primary/50 hover:bg-accent/50'
             )}
           >
-            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <CloudUploadIcon className="size-6" />
+            <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <CloudUploadIcon className="size-5" />
             </div>
-            <p className="font-medium">{dragging ? 'Thả file vào đây' : 'Kéo thả file vào đây hoặc bấm để chọn'}</p>
-            <p className="text-sm text-muted-foreground">PDF, JPG, PNG, XLSX · tối đa 50 MB mỗi file</p>
+            <p className="font-medium text-sm">
+              {dragging ? 'Thả file vào đây' : 'Kéo thả file vào đây hoặc bấm để chọn'}
+            </p>
+            <p className="text-xs text-muted-foreground">PDF, JPG, PNG · tối đa 25 MB mỗi file</p>
           </button>
           <input
             ref={inputRef}
             type="file"
             multiple
-            accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.docx"
+            accept=".pdf,.jpg,.jpeg,.png"
             className="sr-only"
             onChange={(e) => {
               addFiles(Array.from(e.target.files ?? []))
@@ -253,128 +335,115 @@ export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipmen
               </Button>
             </div>
           ) : (
-            <>
-              <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="upload-default-shipment">Gán cho Job / Lô hàng (mặc định)</FieldLabel>
-                  <Select items={shipmentItems} value={defaultShipment || null} onValueChange={(v) => v && applyDefaultShipment(v as string)}>
-                    <SelectTrigger id="upload-default-shipment" className="w-full">
-                      <SelectValue placeholder="Chọn lô hàng" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {shipmentItems.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>
-                            {s.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="upload-date">Ngày chứng từ</FieldLabel>
-                  <Input id="upload-date" type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} />
-                </Field>
-              </FieldGroup>
+            <ul className="flex flex-col gap-2.5" aria-label="Danh sách file chờ tải lên">
+              {files.map((f) => {
+                const hasSuggestedDifferent =
+                  f.suggestedShipment && f.suggestedShipment.id !== selectedShipmentId
 
-              <ul className="flex flex-col gap-2" aria-label="Danh sách file chờ tải lên">
-                {files.map((f) => {
-                  const shipment = shipments.find((s) => s.id === f.shipmentId)
-                  const customer = customers.find((c) => c.id === shipment?.customerId)
-                  return (
-                    <li key={f.id} className="flex flex-col gap-3 rounded-lg border bg-card p-3">
-                      <div className="flex items-start gap-3">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                          <FileTextIcon className="size-4" />
+                return (
+                  <li key={f.id} className="flex flex-col gap-2.5 rounded-lg border bg-card p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <FileTextIcon className="size-4" />
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <p className="truncate text-sm font-medium">{f.name}</p>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                          <span>{formatSize(f.sizeKb)}</span>
+                          <span aria-hidden>·</span>
+                          <span className="inline-flex items-center gap-1 text-primary">
+                            <SparklesIcon className="size-3" />
+                            {f.type === 'OTHER'
+                              ? 'Chưa nhận diện được — vui lòng chọn loại'
+                              : `Gợi ý: ${DOC_TYPE_SHORT[f.type]} (${f.confidence}%)`}
+                          </span>
                         </div>
-                        <div className="flex min-w-0 flex-1 flex-col gap-1">
-                          <p className="truncate text-sm font-medium">{f.name}</p>
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                            <span>{formatSize(f.sizeKb)}</span>
-                            <span aria-hidden>·</span>
-                            <span className="inline-flex items-center gap-1">
-                              <SparklesIcon className="size-3 text-primary" />
-                              {f.type === 'OTHER'
-                                ? 'Chưa nhận diện được — vui lòng chọn loại'
-                                : `Gợi ý: ${DOC_TYPE_SHORT[f.type]} (${f.confidence}%)`}
-                            </span>
-                            {customer && (
-                              <>
-                                <span aria-hidden>·</span>
-                                <span>{customer.shortName}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setFiles((prev) => prev.filter((x) => x.id !== f.id))}
+                        disabled={uploading}
+                        aria-label={`Bỏ ${f.name}`}
+                      >
+                        <Trash2Icon />
+                      </Button>
+                    </div>
+
+                    {/* GỢI Ý LÔ HÀNG NẾU TÊN FILE TRÙNG KHỚP LÔ KHÁC (KHÔNG TỰ ĐỔI NGẦM) */}
+                    {hasSuggestedDifferent && (
+                      <div className="flex items-center justify-between rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+                        <span>
+                          Gợi ý từ tên file: Có phải lô <strong>{f.suggestedShipment?.jobNo}</strong>?
+                        </span>
                         <Button
+                          type="button"
                           variant="ghost"
-                          size="icon-sm"
-                          onClick={() => setFiles((prev) => prev.filter((x) => x.id !== f.id))}
-                          disabled={uploading}
-                          aria-label={`Bỏ ${f.name}`}
+                          size="sm"
+                          className="h-6 px-2 text-xs text-amber-800 dark:text-amber-200 underline hover:no-underline"
+                          onClick={() => {
+                            if (f.suggestedShipment) {
+                              setSelectedShipmentId(f.suggestedShipment.id)
+                              toast.info(`Đã áp dụng lô "${f.suggestedShipment.jobNo}" cho cả lượt tải.`)
+                            }
+                          }}
                         >
-                          <Trash2Icon />
+                          Áp dụng cho lượt tải này
                         </Button>
                       </div>
-                      {uploading ? (
-                        <Progress value={f.progress} aria-label={`Tiến độ tải ${f.name}`} />
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <Select items={DOC_TYPE_ITEMS} value={f.type} onValueChange={(v) => v && update(f.id, { type: v as DocType, confidence: 100 })}>
-                              <SelectTrigger size="sm" className="w-full" aria-label="Loại chứng từ">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectGroup>
-                                  {DOC_TYPE_ITEMS.map((t) => (
-                                    <SelectItem key={t.value} value={t.value}>
-                                      {t.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
-                            <Select items={shipmentItems} value={f.shipmentId || null} onValueChange={(v) => v && update(f.id, { shipmentId: v as string })}>
-                              <SelectTrigger size="sm" className="w-full" aria-label="Lô hàng" aria-invalid={!f.shipmentId}>
-                                <SelectValue placeholder="Chưa gán lô hàng" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectGroup>
-                                  {shipmentItems.map((s) => (
-                                    <SelectItem key={s.value} value={s.value}>
-                                      {s.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {f.type === 'OTHER' && (
-                            <Input
-                              className="h-8 text-xs"
-                              placeholder="Nhập tên loại chứng từ..."
-                              value={f.customTypeName ?? ''}
-                              onChange={(e) => update(f.id, { customTypeName: e.target.value })}
-                            />
-                          )}
+                    )}
+
+                    {uploading ? (
+                      <Progress value={f.progress} aria-label={`Tiến độ tải ${f.name}`} />
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <div className="w-full">
+                          <Select
+                            items={DOC_TYPE_ITEMS}
+                            value={f.type}
+                            onValueChange={(v) => v && update(f.id, { type: v as DocType, confidence: 100 })}
+                          >
+                            <SelectTrigger size="sm" className="w-full" aria-label="Loại chứng từ">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                {DOC_TYPE_ITEMS.map((t) => (
+                                  <SelectItem key={t.value} value={t.value}>
+                                    {t.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            </>
+                        {f.type === 'OTHER' && (
+                          <Input
+                            className="h-8 text-xs"
+                            placeholder="Nhập tên loại chứng từ..."
+                            value={f.customTypeName ?? ''}
+                            onChange={(e) => update(f.id, { customTypeName: e.target.value })}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </div>
 
         <DialogFooter className="items-center gap-2 sm:justify-between">
-          <div className="text-sm text-muted-foreground">
-            {files.length > 0 && (
-              <span className="flex items-center gap-2">
-                {files.length} file
-                {unassigned > 0 && <Badge variant="warning">{unassigned} chưa gán lô</Badge>}
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+            {!selectedShipmentId ? (
+              <span className="flex items-center gap-1 text-destructive font-medium">
+                <AlertCircleIcon className="size-3.5" />
+                Vui lòng chọn Lô hàng / Job ở phía trên
+              </span>
+            ) : (
+              <span>
+                {files.length} tập tin sẽ được gán vào <strong>{activeShipment?.jobNo}</strong>
               </span>
             )}
           </div>
@@ -382,9 +451,13 @@ export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipmen
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={uploading}>
               Hủy
             </Button>
-            <Button onClick={handleUpload} disabled={!files.length || unassigned > 0 || uploading}>
+            <Button
+              onClick={handleUpload}
+              disabled={!files.length || !selectedShipmentId || uploading}
+              title={!selectedShipmentId ? 'Vui lòng chọn lô hàng trước khi tải lên' : undefined}
+            >
               {uploading ? <Spinner data-icon="inline-start" /> : <CloudUploadIcon data-icon="inline-start" />}
-              {uploading ? 'Đang tải lên...' : `Tải lên ${files.length || ''}`.trim()}
+              {uploading ? 'Đang tải lên...' : `Tải lên ${files.length ? `(${files.length})` : ''}`.trim()}
             </Button>
           </div>
         </DialogFooter>

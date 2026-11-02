@@ -5,6 +5,7 @@ import { KpiCards } from '@/components/dashboard/kpi-cards'
 import { RecentActivity } from '@/components/dashboard/recent-activity'
 import { AlertList } from '@/components/dashboard/alert-list'
 import { AttentionShipments } from '@/components/dashboard/attention-shipments'
+import { DraftShipments } from '@/components/dashboard/draft-shipments'
 import { DashboardActions } from '@/components/dashboard/dashboard-actions'
 import { ROLE_LABEL } from '@/lib/labels'
 import type { Role } from '@/lib/types'
@@ -33,6 +34,7 @@ export default async function DashboardPage() {
       <KpiCards kpis={data.kpis} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
+          {data.drafts && data.drafts.length > 0 && <DraftShipments shipments={data.drafts} />}
           <AttentionShipments shipments={data.attention} />
           <RecentActivity activities={data.activities} users={users} />
         </div>

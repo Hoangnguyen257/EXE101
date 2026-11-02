@@ -16,7 +16,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Badge } from '@/components/ui/badge'
 import { Kbd } from '@/components/ui/kbd'
 import type { SearchIndex } from '@/lib/data'
-import { search, type SearchScope, normalize } from '@/lib/search'
+import { search, type SearchScope, type SearchHit, normalize } from '@/lib/search'
 import type { SavedDocument } from '@/lib/storage'
 
 const SCOPES: { value: SearchScope; label: string }[] = [
@@ -45,13 +45,15 @@ export function CommandSearch({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  index: SearchIndex
+  index?: SearchIndex
 }) {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<SearchScope>('all')
   const deferredQuery = useDeferredValue(query)
   const [idbDocs, setIdbDocs] = useState<SavedDocument[]>([])
+  const [apiHits, setApiHits] = useState<SearchHit[]>([])
+  const [loading, setLoading] = useState(false)
 
   // Load scanned documents from IndexedDB on open
   useEffect(() => {
@@ -70,7 +72,45 @@ export function CommandSearch({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onOpenChange])
 
-  const hits = useMemo(() => search(index, deferredQuery, scope), [index, deferredQuery, scope])
+  // Dynamic server-side search via API when index is not provided or empty
+  useEffect(() => {
+    if (!open) return
+    const q = deferredQuery.trim()
+    if (!q) {
+      setApiHits([])
+      setLoading(false)
+      return
+    }
+    if (index && ((index.documents && index.documents.length > 0) || (index.shipments && index.shipments.length > 0))) {
+      return
+    }
+
+    let active = true
+    setLoading(true)
+    fetch(`/api/search?q=${encodeURIComponent(q)}&scope=${scope}`)
+      .then((res) => (res.ok ? res.json() : { hits: [] }))
+      .then((data) => {
+        if (active) {
+          setApiHits(data.hits || [])
+          setLoading(false)
+        }
+      })
+      .catch(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [open, deferredQuery, scope, index])
+
+  const hits = useMemo(() => {
+    if (index && ((index.documents && index.documents.length > 0) || (index.shipments && index.shipments.length > 0))) {
+      return search(index, deferredQuery, scope)
+    }
+    return apiHits
+  }, [index, deferredQuery, scope, apiHits])
+
   const shipmentHits = hits.filter((h) => h.kind === 'shipment')
   const documentHits = hits.filter((h) => h.kind === 'document')
 
@@ -140,9 +180,18 @@ export function CommandSearch({
             <>
               <CommandEmpty>
                 <div className="flex flex-col items-center gap-2 py-4 text-muted-foreground">
-                  <SearchXIcon className="size-6" />
-                  <p className="text-sm">{`Không tìm thấy kết quả cho "${deferredQuery}"`}</p>
-                  <p className="text-xs">Thử bỏ dấu, rút gọn từ khóa hoặc chọn phạm vi “Tất cả”.</p>
+                  {loading ? (
+                    <>
+                      <div className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      <p className="text-sm">Đang tìm kiếm trên hệ thống...</p>
+                    </>
+                  ) : (
+                    <>
+                      <SearchXIcon className="size-6" />
+                      <p className="text-sm">{`Không tìm thấy kết quả cho "${deferredQuery}"`}</p>
+                      <p className="text-xs">Thử bỏ dấu, rút gọn từ khóa hoặc chọn phạm vi “Tất cả”.</p>
+                    </>
+                  )}
                 </div>
               </CommandEmpty>
               {shipmentHits.length > 0 && (
