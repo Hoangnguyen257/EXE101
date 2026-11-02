@@ -86,7 +86,7 @@ export function search(index: SearchIndex, rawQuery: string, scope: SearchScope 
   const tokens = normalize(rawQuery).split(/\s+/).filter(Boolean)
   if (!tokens.length) return []
   const hits: SearchHit[] = []
-  const customerName = (id: string) => index.customers.find((c) => c.id === id)?.shortName ?? ''
+  const customerName = (id?: string | null) => (id ? index.customers.find((c) => c.id === id)?.shortName ?? '' : '')
 
   for (const s of index.shipments) {
     const fields: [SearchScope, string][] = [

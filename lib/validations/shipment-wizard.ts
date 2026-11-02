@@ -116,14 +116,14 @@ export function generateShipmentRequirements(mode: 'sea' | 'air' | 'road', origi
   if (mode === 'air') {
     checklist = isExport
       ? ['BL', 'BOOKING', 'PACKING_LIST', 'CUSTOMS', 'INVOICE']
-      : ['ARRIVAL_NOTICE', 'PACKING_LIST', 'CUSTOMS', 'INVOICE', 'BL']
+      : ['PACKING_LIST', 'CUSTOMS', 'INVOICE', 'BL']
   } else if (mode === 'road') {
     checklist = ['BL', 'PACKING_LIST', 'CUSTOMS', 'INVOICE', 'DELIVERY_ORDER']
   } else {
     // Mode sea
     checklist = isExport
       ? ['BL', 'BOOKING', 'PACKING_LIST', 'CUSTOMS', 'INVOICE', 'DELIVERY_ORDER']
-      : ['ARRIVAL_NOTICE', 'DELIVERY_ORDER', 'PACKING_LIST', 'CUSTOMS', 'INVOICE', 'BL']
+      : ['DELIVERY_ORDER', 'PACKING_LIST', 'CUSTOMS', 'INVOICE', 'BL']
   }
 
   if (isInternational && !checklist.includes('CO')) {

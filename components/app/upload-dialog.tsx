@@ -207,8 +207,14 @@ export function UploadDialog({
           uploadSuccessCount++
           setFiles((prev) => prev.map((f) => (f.id === item.id ? { ...f, progress: 100 } : f)))
         } else {
-          const errData = await res.json().catch(() => ({}))
-          toast.error(`Lỗi tải lên tập tin "${item.name}":`, { description: errData.error || 'Máy chủ từ chối.' })
+          let errorMsg = ''
+          try {
+            const errData = await res.json()
+            errorMsg = errData.error || errData.message || ''
+          } catch {
+            errorMsg = `Lỗi phản hồi HTTP ${res.status}: ${res.statusText || 'Máy chủ không xử lý được yêu cầu'}`
+          }
+          toast.error(`Lỗi tải lên tập tin "${item.name}":`, { description: errorMsg || 'Máy chủ từ chối yêu cầu tải lên.' })
         }
       }
 

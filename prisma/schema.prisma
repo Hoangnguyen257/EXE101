@@ -358,8 +358,8 @@ model Document {
   id             String    @id @default(cuid())
   orgId          String
   shipmentId     String
-  customerId     String
-  departmentId   String
+  customerId     String?
+  departmentId   String?
   type           String    // BL, INVOICE, PACKING_LIST, etc.
   customTypeName String?
   title          String
@@ -383,8 +383,8 @@ model Document {
 
   organization   Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
   shipment       Shipment                 @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  customer       Customer                 @relation(fields: [customerId], references: [id])
-  department     Department               @relation(fields: [departmentId], references: [id])
+  customer       Customer?                @relation(fields: [customerId], references: [id])
+  department     Department?              @relation(fields: [departmentId], references: [id])
   creator        User                     @relation("DocCreator", fields: [createdBy], references: [id])
   updater        User                     @relation("DocUpdater", fields: [updatedBy], references: [id])
   archiveBox     ArchiveBox?              @relation(fields: [archiveBoxId], references: [id])

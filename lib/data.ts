@@ -337,13 +337,21 @@ export async function getDocument(id: string) {
       createdAt: d.shipment.createdAt.toISOString(),
       participants: d.shipment.participants,
     },
-    customer: {
-      id: d.customer.id,
-      orgId: d.customer.orgId,
-      name: d.customer.name,
-      shortName: d.customer.shortName,
-      taxCode: d.customer.taxCode,
-    },
+    customer: d.customer
+      ? {
+          id: d.customer.id,
+          orgId: d.customer.orgId,
+          name: d.customer.name,
+          shortName: d.customer.shortName,
+          taxCode: d.customer.taxCode,
+        }
+      : {
+          id: '',
+          orgId: d.orgId,
+          name: 'Chưa xác định',
+          shortName: 'Chưa xác định',
+          taxCode: '',
+        },
     archiveBox: d.archiveBox
       ? {
           id: d.archiveBox.id,
@@ -441,7 +449,7 @@ export async function getAlerts(shipmentId?: string, tokenOverride?: string): Pr
     for (const t of s.missingTypes) {
       const targetDate = t === 'BOOKING' ? s.etd : isExport ? s.etd : s.eta
       const days = daysUntil(targetDate)
-      const critical = t === 'DELIVERY_ORDER' || t === 'ARRIVAL_NOTICE' || t === 'BOOKING' ? days <= 3 : days <= 7
+      const critical = t === 'DELIVERY_ORDER' || t === 'BOOKING' ? days <= 3 : days <= 7
       alerts.push({
         id: `al_missing_${s.id}_${t}`,
         kind: 'missing',

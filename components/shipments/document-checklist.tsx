@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator'
 import { useApp } from '@/components/app/app-provider'
 import { DocPresenceBadge, LockBadge } from '@/components/app/status-badges'
 import { DOC_TYPE_LABEL, formatRelative, formatSize } from '@/lib/labels'
-import { getRequiredDocTypes, type DocumentFile, type User } from '@/lib/types'
+import { getRequiredDocTypes, type DocumentFile, type User, type DocType } from '@/lib/types'
 import type { ShipmentWithProgress } from '@/lib/data'
 import { cn } from '@/lib/utils'
 
@@ -26,9 +26,12 @@ export function DocumentChecklist({
   const { openUpload, openShare } = useApp()
   const [dragOver, setDragOver] = useState(false)
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? ''
-  const required = shipment.requiredTypes ?? getRequiredDocTypes(shipment)
+  const rawRequired = shipment.requiredTypes ?? getRequiredDocTypes(shipment)
+  // Thông báo hàng đến (Arrival Notice) không cần bắt buộc bổ sung trong checklist
+  const required: DocType[] = rawRequired.filter((t) => t !== 'ARRIVAL_NOTICE')
   const extras = documents.filter((d) => !required.includes(d.type))
-  const done = shipment.presentTypes.length
+  const done = required.filter((t) => documents.some((d) => d.type === t)).length
+  const displayProgress = required.length ? Math.min(100, Math.round((done / required.length) * 100)) : 100
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault()
@@ -65,9 +68,9 @@ export function DocumentChecklist({
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium">Tiến độ hoàn thiện</span>
-            <span className="tabular-nums text-muted-foreground">{shipment.progress}%</span>
+            <span className="tabular-nums text-muted-foreground">{displayProgress}%</span>
           </div>
-          <Progress value={shipment.progress} aria-label="Tiến độ hoàn thiện chứng từ" />
+          <Progress value={displayProgress} aria-label="Tiến độ hoàn thiện chứng từ" />
         </div>
 
         <ul className="flex flex-col gap-2">

@@ -18,7 +18,6 @@ export const REQUIRED_DOC_TYPES: DocType[] = [
   'PACKING_LIST',
   'BOOKING',
   'DELIVERY_ORDER',
-  'ARRIVAL_NOTICE',
   'CUSTOMS',
   'CO',
 ]
@@ -36,7 +35,7 @@ export function getRequiredDocTypes(shipment: { origin?: string | null; destinat
   if (mode === 'air') {
     return isExport
       ? ['BL', 'BOOKING', 'PACKING_LIST', 'CO', 'CUSTOMS', 'INVOICE']
-      : ['ARRIVAL_NOTICE', 'PACKING_LIST', 'CO', 'CUSTOMS', 'INVOICE', 'BL']
+      : ['PACKING_LIST', 'CO', 'CUSTOMS', 'INVOICE', 'BL']
   }
 
   if (mode === 'road') {
@@ -46,7 +45,7 @@ export function getRequiredDocTypes(shipment: { origin?: string | null; destinat
   if (isExport) {
     return ['BL', 'BOOKING', 'PACKING_LIST', 'CO', 'CUSTOMS', 'INVOICE']
   }
-  return ['ARRIVAL_NOTICE', 'DELIVERY_ORDER', 'PACKING_LIST', 'CO', 'CUSTOMS', 'INVOICE', 'BL']
+  return ['DELIVERY_ORDER', 'PACKING_LIST', 'CO', 'CUSTOMS', 'INVOICE', 'BL']
 }
 
 /**
@@ -165,7 +164,7 @@ export interface DocumentFile {
   orgId: string
   departmentId?: string | null
   shipmentId: string
-  customerId: string
+  customerId?: string | null
   type: DocType
   customTypeName?: string
   title: string

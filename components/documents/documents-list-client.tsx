@@ -21,7 +21,7 @@ interface UnifiedDoc {
   type: DocType
   customTypeName?: string
   shipmentId: string
-  customerId: string
+  customerId?: string | null
   docDate: string
   pagesCount: number
   ocrText: string

@@ -78,7 +78,7 @@ export default async function PublicSharePage({
         pages: share.document.pages,
         ocrText: safeOcrText,
         shipmentJobNo: share.document.shipment.jobNo,
-        customerName: share.document.customer.shortName,
+        customerName: share.document.customer?.shortName ?? 'Chưa xác định',
       }}
     />
   )

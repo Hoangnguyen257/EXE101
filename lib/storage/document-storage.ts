@@ -10,9 +10,11 @@ import path from 'path'
 import crypto from 'crypto'
 import { prisma } from '../prisma'
 
-export const VAULT_DIR = process.env.STORAGE_LOCAL_PATH
-  ? path.resolve(/*turbopackIgnore: true*/ process.cwd(), process.env.STORAGE_LOCAL_PATH)
-  : path.resolve(process.cwd(), 'storage_vault')
+export const VAULT_DIR = process.env.VERCEL
+  ? path.resolve('/tmp', 'storage_vault')
+  : process.env.STORAGE_LOCAL_PATH
+    ? path.resolve(/*turbopackIgnore: true*/ process.cwd(), process.env.STORAGE_LOCAL_PATH)
+    : path.resolve(process.cwd(), 'storage_vault')
 
 // Khởi tạo thư mục vault nếu chưa tồn tại
 if (!fs.existsSync(VAULT_DIR)) {
@@ -150,9 +152,9 @@ export function validateComprehensiveUpload(
 
   // 4. Kiểm tra chuyên sâu cho tập tin PDF
   if (magicResult.mimeType === 'application/pdf') {
-    const tailBuffer = buffer.subarray(Math.max(0, buffer.length - 2048))
-    const tailStr = tailBuffer.toString('latin1')
-    if (!tailStr.includes('%%EOF')) {
+    // Quét tìm ký hiệu kết thúc %%EOF trong toàn bộ file hoặc vùng đệm cuối (hỗ trợ file eDO có metadata lớn)
+    const hasEof = buffer.includes(Buffer.from('%%EOF'))
+    if (!hasEof) {
       return {
         isValid: false,
         error: 'Tập tin PDF bị lỗi cấu trúc (thiếu dấu kết thúc %%EOF tiêu chuẩn)',
@@ -161,20 +163,13 @@ export function validateComprehensiveUpload(
       }
     }
 
-    // Quét phần tử độc hại (Exploit, Shell Launch, embedded scripts)
+    // Quét phần tử độc hại thực thi lệnh hệ điều hành (/Launch)
+    // Lưu ý: Không chặn /JavaScript thông thường vì các biểu mẫu eDO / hải quan tiêu chuẩn thường chứa script tính toán Acrobat
     const contentSample = buffer.toString('latin1', 0, Math.min(buffer.length, 300000))
     if (contentSample.includes('/Launch ') || contentSample.includes('/Launch/')) {
       return {
         isValid: false,
         error: 'Tập tin PDF bị từ chối: Phát hiện chỉ thị thực thi hệ thống nguy hiểm (/Launch)',
-        checksum,
-        safeFileName,
-      }
-    }
-    if (contentSample.includes('/JavaScript') || contentSample.includes('/JS ')) {
-      return {
-        isValid: false,
-        error: 'Tập tin PDF bị từ chối: Phát hiện mã kịch bản nhúng (/JavaScript)',
         checksum,
         safeFileName,
       }
