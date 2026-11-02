@@ -27,3 +27,4 @@ Hệ thống được kiểm thử kỹ lưỡng trên 6 kích thước màn hì
    - Toàn bộ các nút bấm và ô nhập liệu đều đạt chiều cao tối thiểu $\ge 38\text{px}$ trên thiết bị di động, đảm bảo thao tác chạm ngón tay chính xác.
 3. **Che khuất do bàn phím ảo (Virtual Keyboard Handling):**
    - Các input trên mobile không bị che khuất khi bàn phím ảo xuất hiện; trường đang focus tự động cuộn vào vùng nhìn thấy.
+

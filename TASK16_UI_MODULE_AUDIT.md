@@ -27,3 +27,4 @@
 1. **Tuyệt đối không sử dụng Mock Data:** Mọi số liệu thống kê, danh sách chứng từ, lô hàng, hoạt động kiểm toán đều lấy trực tiếp từ Prisma Database và Session thật.
 2. **Không thay đổi Schema ngoài phạm vi cho phép:** Các quan hệ giữa User, Role, Department, Shipment, Document được bảo lưu toàn vẹn.
 3. **Bảo toàn 100% tài khoản demo:** Giữ nguyên các tài khoản thử nghiệm dành cho hội đồng đánh giá và kiểm thử viên (`admin@tml.vn`, `ha.tran@tml.vn`, `lan.pham@tml.vn` với mật khẩu `Tml@2026!`).
+

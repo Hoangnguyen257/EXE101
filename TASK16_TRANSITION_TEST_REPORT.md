@@ -51,3 +51,4 @@ Hệ thống đã trải qua quy trình kiểm thử thị giác và chuyển đ
 
 ## 2. KẾT LUẬN
 Toàn bộ chuỗi 4 kịch bản kiểm thử chuyển cảnh đã đạt chuẩn chất lượng điện ảnh cao cấp, không phát sinh lỗi layout thrashing hay giật khung hình.
+

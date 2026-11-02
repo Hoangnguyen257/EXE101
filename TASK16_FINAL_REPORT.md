@@ -72,3 +72,4 @@ Hệ thống TML DocManager đã đạt được sự hoàn thiện tối đa v�
 - Khách hàng và người dùng cảm nhận được bản sắc riêng của một phần mềm SaaS Enterprise Logistics cao cấp.
 - Trải nghiệm liền mạch tuyệt đối: Không flash đen/trắng, không giật kích thước, không card đè lên giấy.
 - Hoàn toàn bảo toàn tính năng, an ninh và hiệu năng của toàn bộ hệ thống.
+

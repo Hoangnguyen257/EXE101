@@ -81,3 +81,4 @@ Dự án sử dụng bộ font chuẩn hỗ trợ tiếng Việt hoàn hảo:
   - Form chứng từ mở rộng chiếm `w-full max-w-[440px]`, lề $16\text{px}$.
   - Chuyển động 3D giảm nhẹ góc xoay để tối ưu hóa góc nhìn và hiệu năng vi xử lý di động.
   - Sidebar chuyển thành ngăn kéo trượt (Mobile Drawer), đảm bảo $100\%$ không phát sinh cuộn ngang (horizontal overflow).
+
