@@ -11,3 +11,4 @@ SET "departmentId" = (
     SELECT "id" FROM "Department" LIMIT 1
 )
 WHERE "departmentId" IS NULL;
+

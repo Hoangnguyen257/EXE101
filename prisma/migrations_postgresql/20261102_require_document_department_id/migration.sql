@@ -11,3 +11,4 @@ WHERE "departmentId" IS NULL;
 
 -- Make departmentId NOT NULL
 ALTER TABLE "Document" ALTER COLUMN "departmentId" SET NOT NULL;
+

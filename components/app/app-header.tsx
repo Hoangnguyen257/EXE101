@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { CompassIcon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon, UploadIcon, UserIcon } from 'lucide-react'
+import { CompassIcon, KeyRoundIcon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon, UploadIcon, UserIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { Separator } from '@/components/ui/separator'
@@ -88,6 +88,10 @@ export function AppHeader() {
               <DropdownMenuItem render={<Link href="/settings" />}>
                 <UserIcon />
                 Hồ sơ & tổ chức
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/change-password" />}>
+                <KeyRoundIcon />
+                Đổi mật khẩu
               </DropdownMenuItem>
               <DropdownMenuItem onClick={startTour}>
                 <CompassIcon />

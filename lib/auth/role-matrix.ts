@@ -148,3 +148,4 @@ export function isActionPermittedInMatrix(
   const list = ROLE_PERMISSIONS_MATRIX[roleCode]
   return list ? list.includes(code) : false
 }
+

@@ -115,3 +115,4 @@ Ngay cả khi người dùng gõ từ khóa khớp chính xác với số JobNo 
 - Dữ liệu cũ đã được đồng bộ thông qua migration SQLite và PostgreSQL:
   - `prisma/migrations/20261102_require_document_department_id/migration.sql`
   - `prisma/migrations_postgresql/20261102_require_document_department_id/migration.sql`
+

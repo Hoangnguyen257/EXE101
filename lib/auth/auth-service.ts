@@ -339,9 +339,25 @@ export async function revokeUserSessions(userId: string) {
   })
 }
 
-export async function getSessionUser(tokenOverride?: string): Promise<AuthUser | null> {
+export async function getSessionUser(tokenOverride?: string | Request): Promise<AuthUser | null> {
   try {
-    let token = tokenOverride
+    let token: string | undefined
+
+    if (typeof tokenOverride === 'string') {
+      token = tokenOverride
+    } else if (tokenOverride && typeof (tokenOverride as Request).headers?.get === 'function') {
+      const authHeader = (tokenOverride as Request).headers.get('authorization')
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7).trim()
+      }
+      if (!token) {
+        const cookieHeader = (tokenOverride as Request).headers.get('cookie')
+        if (cookieHeader) {
+          const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE_NAME}=([^;]*)`))
+          if (match) token = match[1]
+        }
+      }
+    }
 
     // 1. Kiểm tra cookie nếu chưa có tokenOverride
     if (!token) {

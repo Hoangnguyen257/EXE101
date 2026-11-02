@@ -559,15 +559,24 @@ export async function getAuditLogs() {
 }
 
 export async function getSettings() {
-  const [org, depts, users, positions] = await Promise.all([
+  const [org, depts, users, positions, boxes] = await Promise.all([
     prisma.organization.findFirst(),
     prisma.department.findMany({
       include: { userLinks: true },
+      orderBy: { code: 'asc' },
     }),
     prisma.user.findMany({
-      include: { departments: { include: { department: true } } },
+      include: {
+        departments: { include: { department: true } },
+        positions: { include: { position: true } },
+      },
+      orderBy: { createdAt: 'desc' },
     }),
-    prisma.position.findMany(),
+    prisma.position.findMany({ orderBy: { level: 'desc' } }),
+    prisma.archiveBox.findMany({
+      include: { documents: { select: { id: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
   ])
 
   return {
@@ -595,6 +604,7 @@ export async function getSettings() {
       id: d.id,
       orgId: d.orgId,
       name: d.name,
+      code: d.code,
       head: d.headUserId ?? 'Chưa phân công',
       userCount: d.userLinks.length,
     })),
@@ -604,13 +614,36 @@ export async function getSettings() {
       name: u.name,
       email: u.email,
       role: u.roleCode.toLowerCase() as any,
-      departmentId: u.departments[0]?.department.id ?? 'd1',
+      roleCode: u.roleCode,
+      departmentId: u.departments[0]?.department.id ?? '',
+      departmentName: u.departments[0]?.department.name ?? 'Chưa gán',
+      positionId: u.positions[0]?.position.id ?? '',
+      positionName: u.positions[0]?.position.name ?? 'Chưa gán',
+      isManager: u.departments[0]?.isManager ?? false,
       branchId: 'b1',
       initials: u.initials,
       active: u.isActive,
+      mustChangePassword: u.mustChangePassword,
       lastActive: u.lastActiveAt?.toISOString() ?? u.createdAt.toISOString(),
     })),
-    positions,
+    positions: positions.map((p) => ({
+      id: p.id,
+      name: p.name,
+      level: p.level,
+      description: p.description,
+    })),
+    archiveBoxes: boxes.map((b) => ({
+      id: b.id,
+      orgId: b.orgId,
+      code: b.code,
+      warehouse: b.warehouse,
+      shelf: b.shelf,
+      box: b.box,
+      customerId: b.customerId ?? undefined,
+      period: b.period,
+      documentIds: b.documents.map((d) => d.id),
+      createdAt: b.createdAt.toISOString(),
+    })),
   }
 }
 
