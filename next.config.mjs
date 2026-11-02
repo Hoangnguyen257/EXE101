@@ -6,6 +6,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  outputFileTracingIncludes: {
+    '/**': ['./prisma/dev.db', './dev.db'],
+  },
   experimental: {
     agentUpgrade: 'security',
   },

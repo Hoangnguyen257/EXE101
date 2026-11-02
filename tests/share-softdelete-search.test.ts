@@ -7,7 +7,7 @@ import { GET as getShareDownload } from '@/app/api/s/[token]/download/route'
 import { GET as getShareFile } from '@/app/api/s/[token]/file/route'
 import { POST as verifyShare } from '@/app/api/s/[token]/verify/route'
 import { login, getSessionUser } from '@/lib/auth/auth-service'
-import { dbSearch } from '@/lib/search'
+import { dbSearch } from '../lib/db-search'
 
 async function runAcceptanceTests() {
   console.log('\n================================================================================')

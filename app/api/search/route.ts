@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth/auth-service'
-import { dbSearch, type SearchScope } from '@/lib/search'
+import { dbSearch } from '@/lib/db-search'
+import type { SearchScope } from '@/lib/search'
 
 export const dynamic = 'force-dynamic'
 
