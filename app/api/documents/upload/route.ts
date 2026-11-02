@@ -54,17 +54,25 @@ export async function POST(req: Request) {
     // Check shipment
     const shipment = await prisma.shipment.findUnique({
       where: { id: shipmentId },
-      include: { customer: true },
+      include: { customer: true, participants: true },
     })
 
     if (!shipment) {
       return NextResponse.json({ error: 'Lô hàng không tồn tại.' }, { status: 404 })
     }
 
+    if (!shipment.departmentId) {
+      return NextResponse.json(
+        { error: 'Lô hàng chưa có phòng ban trực thuộc. Không thể tải chứng từ lên.' },
+        { status: 400 }
+      )
+    }
+
     // Permission check
     const perm = await PermissionService.check(sessionUser, 'DOCUMENTS', 'UPLOAD', {
       departmentId: shipment.departmentId,
       ownerId: shipment.ownerId,
+      assignedUserIds: shipment.participants.map((p) => p.userId),
     })
 
     if (!perm.allowed) {
@@ -163,7 +171,7 @@ export async function POST(req: Request) {
               orgId: sessionUser.orgId,
               shipmentId: shipment.id,
               customerId: shipment.customerId,
-              departmentId: shipment.departmentId,
+              departmentId: shipment.departmentId!,
               type: docType,
               customTypeName: customTypeName || null,
               title,

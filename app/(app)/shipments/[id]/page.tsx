@@ -37,11 +37,12 @@ export default async function ShipmentDetailPage({
     notFound()
   }
 
-  // Khắc phục SEC-10: Kiểm tra quyền xem Lô hàng cấp Resource
+  // Khắc phục SEC-10: Kiểm tra quyền xem Lô hàng cấp Resource kết hợp thành viên tham gia
   const perm = await PermissionService.check(sessionUser, 'SHIPMENTS', 'VIEW', {
     id: data.shipment.id,
     departmentId: (data.shipment as any).departmentId || null,
     ownerId: data.shipment.ownerId,
+    assignedUserIds: data.participants.map((p: any) => p.userId),
   })
 
   if (!perm.allowed) {
@@ -63,6 +64,7 @@ export default async function ShipmentDetailPage({
       activities={data.activities}
       goods={data.goods}
       users={users}
+      initialParticipants={data.participants}
     />
   )
 }

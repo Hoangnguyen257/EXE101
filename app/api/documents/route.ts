@@ -22,32 +22,21 @@ export async function GET(req: Request) {
   const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20))
   const skip = (page - 1) * limit
 
-  const whereClause: any = { isDeleted: false, orgId: sessionUser.orgId }
+  const permissionWhere = await PermissionService.buildDocumentWhereInput(sessionUser, 'VIEW')
+  const andConditions: any[] = [{ isDeleted: false }, permissionWhere]
 
-  // Scoping theo vai trò và phòng ban
-  if (sessionUser.role !== 'ADMIN') {
-    const userDeptIds = sessionUser.departments.map((d) => d.id)
-    const shares = await prisma.documentAccessPermission.findMany({
-      where: {
-        OR: [{ targetUserId: sessionUser.id }, { targetDeptId: { in: userDeptIds } }],
-        AND: [{ OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }],
-      },
-      select: { documentId: true },
-    })
-    const sharedDocIds = shares.map((s) => s.documentId)
-
-    whereClause.OR = [
-      { departmentId: { in: userDeptIds } },
-      { createdBy: sessionUser.id },
-      { id: { in: sharedDocIds } },
-    ]
-  }
-
-  if (shipmentId) whereClause.shipmentId = shipmentId
-  if (type && type !== 'all') whereClause.type = type
+  if (shipmentId) andConditions.push({ shipmentId })
+  if (type && type !== 'all') andConditions.push({ type })
   if (q && q.trim()) {
-    whereClause.title = { contains: q.trim() }
+    andConditions.push({
+      OR: [
+        { title: { contains: q.trim() } },
+        { fileName: { contains: q.trim() } },
+      ],
+    })
   }
+
+  const whereClause = { AND: andConditions }
 
   const [total, docs] = await Promise.all([
     prisma.document.count({ where: whereClause }),
@@ -122,16 +111,25 @@ export async function POST(req: Request) {
 
     const shipment = await prisma.shipment.findUnique({
       where: { id: shipmentId },
+      include: { participants: true },
     })
 
     if (!shipment) {
       return NextResponse.json({ error: 'Lô hàng không tồn tại.' }, { status: 404 })
     }
 
+    if (!shipment.departmentId) {
+      return NextResponse.json(
+        { error: 'Lô hàng chưa có phòng ban trực thuộc. Không thể tạo chứng từ.' },
+        { status: 400 }
+      )
+    }
+
     // Permission check
     const perm = await PermissionService.check(sessionUser, 'DOCUMENTS', 'CREATE', {
       departmentId: shipment.departmentId,
       ownerId: shipment.ownerId,
+      assignedUserIds: shipment.participants.map((p) => p.userId),
     })
 
     if (!perm.allowed) {

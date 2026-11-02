@@ -37,11 +37,13 @@ export default async function DocumentDetailPage({
     notFound()
   }
 
-  // Khắc phục SEC-10: Kiểm tra quyền truy cập chi tiết chứng từ ở cấp Resource
+  // Khắc phục SEC-10: Kiểm tra quyền truy cập chi tiết chứng từ ở cấp Resource kết hợp thành viên lô hàng
   const perm = await PermissionService.check(sessionUser, 'DOCUMENTS', 'VIEW', {
     id: data.document.id,
     departmentId: (data.document as any).departmentId || null,
     createdBy: data.document.uploadedBy,
+    ownerId: data.shipment.ownerId,
+    assignedUserIds: data.shipment.participants?.map((p: any) => p.userId),
   })
 
   if (!perm.allowed) {

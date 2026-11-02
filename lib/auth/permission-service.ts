@@ -172,10 +172,28 @@ export class PermissionService {
     if ((action === 'CREATE' || action === 'UPLOAD') && resource?.departmentId) {
       if (applicableScope === 'DEPARTMENT' || applicableScope === 'ASSIGNED') {
         const userDeptIds = user.departments.map((d) => d.id)
-        if (!userDeptIds.includes(resource.departmentId)) {
-          return {
-            allowed: false,
-            reason: 'Bạn không thuộc phòng ban được chỉ định để tạo hoặc tải lên tài nguyên.',
+        const isAssigned = Boolean(resource.assignedUserIds && resource.assignedUserIds.includes(user.id))
+        const isOwner = resource.ownerId === user.id || resource.createdBy === user.id
+        const isDeptMember = userDeptIds.includes(resource.departmentId)
+
+        if (!isDeptMember && !isAssigned && !isOwner) {
+          // Với MANAGER, kiểm tra xem có nhân viên thuộc phòng mình được phân công trong lô hàng không
+          let isManagerOfAssignedStaff = false
+          if (user.role === 'MANAGER' && resource.assignedUserIds && resource.assignedUserIds.length > 0) {
+            const staffInDept = await prisma.userDepartment.findFirst({
+              where: {
+                userId: { in: resource.assignedUserIds },
+                departmentId: { in: userDeptIds },
+              },
+            })
+            if (staffInDept) isManagerOfAssignedStaff = true
+          }
+
+          if (!isManagerOfAssignedStaff) {
+            return {
+              allowed: false,
+              reason: 'Bạn không thuộc phòng ban được chỉ định và không có quyền phụ trách trên tài nguyên này.',
+            }
           }
         }
       }
@@ -211,10 +229,32 @@ export class PermissionService {
       return { allowed: true }
     }
 
-    // C. DEPARTMENT: Thuộc cùng phòng ban
-    if (scope === 'DEPARTMENT') {
-      if (res.departmentId && userDeptIds.includes(res.departmentId)) {
-        return { allowed: true }
+    // C. DEPARTMENT & RESPONSIBLE STAFF MODEL: Thuộc cùng phòng ban hoặc do nhân viên phòng mình phụ trách
+    // Lô hàng / chứng từ thuộc phòng ban của người dùng (áp dụng cho cả MANAGER và STAFF)
+    if (res.departmentId && userDeptIds.includes(res.departmentId)) {
+      return { allowed: true }
+    }
+
+    // Mô hình phụ trách phòng ban (Responsible/Assigned Staff Department Model):
+    // Trưởng phòng quản lý các lô hàng / chứng từ mà nhân viên phòng mình là người phụ trách hoặc thành viên tham gia
+    if (user.role === 'MANAGER' || scope === 'DEPARTMENT') {
+      const staffToCheck: string[] = []
+      if (res.ownerId && res.ownerId !== user.id) staffToCheck.push(res.ownerId)
+      if (res.createdBy && res.createdBy !== user.id) staffToCheck.push(res.createdBy)
+      if (res.assignedUserIds && res.assignedUserIds.length > 0) {
+        staffToCheck.push(...res.assignedUserIds)
+      }
+
+      if (staffToCheck.length > 0) {
+        const staffInDept = await prisma.userDepartment.findFirst({
+          where: {
+            userId: { in: staffToCheck },
+            departmentId: { in: userDeptIds },
+          },
+        })
+        if (staffInDept) {
+          return { allowed: true }
+        }
       }
     }
 
@@ -282,6 +322,327 @@ export class PermissionService {
     return {
       allowed: false,
       reason: `Tài nguyên nằm ngoài phạm vi truy cập (${scope}) của người dùng.`,
+    }
+  }
+
+  /**
+   * Tạo điều kiện WHERE tập trung để truy vấn danh sách Lô hàng (Shipment).
+   * Áp dụng nhất quán RBAC, Explicit Deny ở cấp DB, cách ly phòng ban,
+   * và mô hình phụ trách của Trưởng phòng đối với nhân viên phòng mình.
+   */
+  static async buildShipmentWhereInput(
+    user: AuthUser | null,
+    action: PermissionAction = 'VIEW'
+  ): Promise<any> {
+    if (!user || !user.isActive) {
+      return { id: '__UNAUTHORIZED__' }
+    }
+
+    if (user.role === 'ADMIN') {
+      return { orgId: user.orgId }
+    }
+
+    const permissionCode = `SHIPMENTS:${action}`
+
+    // 1. Kiểm tra Explicit Deny ở cấp User
+    const userPerm = await prisma.userPermission.findFirst({
+      where: {
+        userId: user.id,
+        permission: { code: permissionCode },
+      },
+      include: { permission: true },
+    })
+
+    if (userPerm && !userPerm.isGranted) {
+      return { id: '__EXPLICIT_DENIED__' }
+    }
+
+    // 2. Kiểm tra quyền Role hoặc Department hoặc User Explicit Allow
+    let isGranted = false
+    let applicableScope: ResourceScope = 'DEPARTMENT'
+
+    if (userPerm && userPerm.isGranted) {
+      isGranted = true
+      applicableScope = userPerm.scope as ResourceScope
+    }
+
+    if (!isGranted) {
+      const rolePerm = await prisma.rolePermission.findFirst({
+        where: {
+          role: { code: user.role },
+          permission: { code: permissionCode },
+        },
+      })
+      if (rolePerm) {
+        isGranted = true
+        applicableScope = user.role === 'MANAGER' ? 'DEPARTMENT' : 'ASSIGNED'
+      }
+    }
+
+    const userDeptIds = user.departments.map((d) => d.id)
+
+    if (!isGranted && userDeptIds.length > 0) {
+      const deptPerm = await prisma.departmentPermission.findFirst({
+        where: {
+          departmentId: { in: userDeptIds },
+          permission: { code: permissionCode },
+        },
+      })
+      if (deptPerm) {
+        isGranted = true
+        applicableScope = deptPerm.scope as ResourceScope
+      }
+    }
+
+    if (!isGranted) {
+      return { id: '__FORBIDDEN__' }
+    }
+
+    if (applicableScope === 'GLOBAL' || applicableScope === 'ORGANIZATION') {
+      return { orgId: user.orgId }
+    }
+
+    // Đối với vai trò MANAGER:
+    // Thấy và quản lý mọi lô của phòng mình, HOẶC lô có nhân viên phòng mình phụ trách (owner hoặc participant)
+    if (user.role === 'MANAGER') {
+      return {
+        orgId: user.orgId,
+        OR: [
+          { departmentId: { in: userDeptIds } },
+          { ownerId: user.id },
+          {
+            owner: {
+              departments: {
+                some: { departmentId: { in: userDeptIds } },
+              },
+            },
+          },
+          {
+            participants: {
+              some: { userId: user.id },
+            },
+          },
+          {
+            participants: {
+              some: {
+                user: {
+                  departments: {
+                    some: { departmentId: { in: userDeptIds } },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      }
+    }
+
+    // Đối với vai trò STAFF:
+    // Thấy lô thuộc phòng mình HOẶC được phân công trực tiếp (owner hoặc participant)
+    return {
+      orgId: user.orgId,
+      OR: [
+        { departmentId: { in: userDeptIds } },
+        { ownerId: user.id },
+        {
+          participants: {
+            some: { userId: user.id },
+          },
+        },
+      ],
+    }
+  }
+
+  /**
+   * Tạo điều kiện WHERE tập trung để truy vấn danh sách Chứng từ (Document).
+   * Áp dụng nhất quán RBAC, Explicit Deny ở cấp DB, cách ly phòng ban,
+   * quyền chia sẻ nội bộ DocumentAccessPermission, và mô hình phụ trách của Trưởng phòng.
+   */
+  static async buildDocumentWhereInput(
+    user: AuthUser | null,
+    action: PermissionAction = 'VIEW'
+  ): Promise<any> {
+    if (!user || !user.isActive) {
+      return { id: '__UNAUTHORIZED__' }
+    }
+
+    if (user.role === 'ADMIN') {
+      return { orgId: user.orgId }
+    }
+
+    const permissionCode = `DOCUMENTS:${action}`
+
+    // 1. Kiểm tra Explicit Deny ở cấp User
+    const userPerm = await prisma.userPermission.findFirst({
+      where: {
+        userId: user.id,
+        permission: { code: permissionCode },
+      },
+      include: { permission: true },
+    })
+
+    if (userPerm && !userPerm.isGranted) {
+      return { id: '__EXPLICIT_DENIED__' }
+    }
+
+    // 2. Kiểm tra quyền Role hoặc Department hoặc User Explicit Allow
+    let isGranted = false
+    let applicableScope: ResourceScope = 'DEPARTMENT'
+
+    if (userPerm && userPerm.isGranted) {
+      isGranted = true
+      applicableScope = userPerm.scope as ResourceScope
+    }
+
+    if (!isGranted) {
+      const rolePerm = await prisma.rolePermission.findFirst({
+        where: {
+          role: { code: user.role },
+          permission: { code: permissionCode },
+        },
+      })
+      if (rolePerm) {
+        isGranted = true
+        applicableScope = user.role === 'MANAGER' ? 'DEPARTMENT' : 'ASSIGNED'
+      }
+    }
+
+    const userDeptIds = user.departments.map((d) => d.id)
+
+    if (!isGranted && userDeptIds.length > 0) {
+      const deptPerm = await prisma.departmentPermission.findFirst({
+        where: {
+          departmentId: { in: userDeptIds },
+          permission: { code: permissionCode },
+        },
+      })
+      if (deptPerm) {
+        isGranted = true
+        applicableScope = deptPerm.scope as ResourceScope
+      }
+    }
+
+    // 3. Lấy danh sách ID chứng từ được chia sẻ nội bộ qua DocumentAccessPermission
+    const now = new Date()
+    const allowedSharedLevels =
+      action === 'VIEW'
+        ? ['VIEW', 'DOWNLOAD', 'EDIT']
+        : action === 'DOWNLOAD'
+        ? ['DOWNLOAD', 'EDIT']
+        : action === 'EDIT'
+        ? ['EDIT']
+        : []
+
+    let sharedDocIds: string[] = []
+    if (allowedSharedLevels.length > 0) {
+      const grants = await prisma.documentAccessPermission.findMany({
+        where: {
+          OR: [
+            { targetUserId: user.id },
+            { targetDeptId: { in: userDeptIds } },
+          ],
+          permissionLevel: { in: allowedSharedLevels },
+          AND: [
+            {
+              OR: [
+                { expiresAt: null },
+                { expiresAt: { gt: now } },
+              ],
+            },
+          ],
+        },
+        select: { documentId: true },
+      })
+      sharedDocIds = Array.from(new Set(grants.map((g) => g.documentId)))
+    }
+
+    if (!isGranted) {
+      if (sharedDocIds.length > 0) {
+        return { orgId: user.orgId, id: { in: sharedDocIds } }
+      }
+      return { id: '__FORBIDDEN__' }
+    }
+
+    if (applicableScope === 'GLOBAL' || applicableScope === 'ORGANIZATION') {
+      return { orgId: user.orgId }
+    }
+
+    // Đối với vai trò MANAGER:
+    if (user.role === 'MANAGER') {
+      const conditions: any[] = [
+        { departmentId: { in: userDeptIds } },
+        { createdBy: user.id },
+        {
+          creator: {
+            departments: {
+              some: { departmentId: { in: userDeptIds } },
+            },
+          },
+        },
+        {
+          shipment: {
+            departmentId: { in: userDeptIds },
+          },
+        },
+        {
+          shipment: {
+            owner: {
+              departments: {
+                some: { departmentId: { in: userDeptIds } },
+              },
+            },
+          },
+        },
+        {
+          shipment: {
+            participants: {
+              some: {
+                user: {
+                  departments: {
+                    some: { departmentId: { in: userDeptIds } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ]
+
+      if (sharedDocIds.length > 0) {
+        conditions.push({ id: { in: sharedDocIds } })
+      }
+
+      return {
+        orgId: user.orgId,
+        OR: conditions,
+      }
+    }
+
+    // Đối với vai trò STAFF:
+    const staffConditions: any[] = [
+      { departmentId: { in: userDeptIds } },
+      { createdBy: user.id },
+      {
+        shipment: {
+          ownerId: user.id,
+        },
+      },
+      {
+        shipment: {
+          participants: {
+            some: { userId: user.id },
+          },
+        },
+      },
+    ]
+
+    if (sharedDocIds.length > 0) {
+      staffConditions.push({ id: { in: sharedDocIds } })
+    }
+
+    return {
+      orgId: user.orgId,
+      OR: staffConditions,
     }
   }
 
@@ -393,3 +754,7 @@ export class PermissionService {
     return result
   }
 }
+
+export const buildShipmentWhereInput = PermissionService.buildShipmentWhereInput.bind(PermissionService)
+export const buildDocumentWhereInput = PermissionService.buildDocumentWhereInput.bind(PermissionService)
+

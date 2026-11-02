@@ -19,6 +19,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       customer: true,
       owner: { select: { id: true, name: true, email: true } },
       department: true,
+      participants: {
+        include: {
+          user: { select: { id: true, name: true, email: true, roleCode: true, initials: true } },
+        },
+      },
       documents: {
         where: { isDeleted: false },
         include: { versions: true, ocrResults: { take: 1, orderBy: { extractedAt: 'desc' } } },
@@ -36,6 +41,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     id: shipment.id,
     departmentId: shipment.departmentId,
     ownerId: shipment.ownerId,
+    assignedUserIds: shipment.participants.map((p) => p.userId),
   })
 
   if (!perm.allowed) {
@@ -61,6 +67,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const shipment = await prisma.shipment.findUnique({
     where: { id },
+    include: { participants: true },
   })
 
   if (!shipment) {
@@ -72,6 +79,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     id: shipment.id,
     departmentId: shipment.departmentId,
     ownerId: shipment.ownerId,
+    assignedUserIds: shipment.participants.map((p) => p.userId),
   })
 
   if (!perm.allowed) {

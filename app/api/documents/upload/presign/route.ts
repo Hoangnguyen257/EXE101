@@ -63,15 +63,24 @@ export async function POST(req: Request) {
     // 2. Kiểm tra quyền UPLOAD trên lô hàng
     const shipment = await prisma.shipment.findUnique({
       where: { id: shipmentId },
+      include: { participants: true },
     })
 
     if (!shipment) {
       return NextResponse.json({ error: 'Lô hàng không tồn tại.' }, { status: 404 })
     }
 
+    if (!shipment.departmentId) {
+      return NextResponse.json(
+        { error: 'Lô hàng chưa có phòng ban trực thuộc. Không thể khởi tạo phiên tải lên.' },
+        { status: 400 }
+      )
+    }
+
     const perm = await PermissionService.check(sessionUser, 'DOCUMENTS', 'UPLOAD', {
       departmentId: shipment.departmentId,
       ownerId: shipment.ownerId,
+      assignedUserIds: shipment.participants.map((p) => p.userId),
     })
 
     if (!perm.allowed) {

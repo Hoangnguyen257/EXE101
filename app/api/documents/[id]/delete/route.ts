@@ -20,6 +20,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const doc = await prisma.document.findUnique({
     where: { id },
+    include: { shipment: { include: { participants: true } } },
   })
 
   if (!doc || doc.isDeleted) {
@@ -31,6 +32,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     id: doc.id,
     departmentId: doc.departmentId,
     createdBy: doc.createdBy,
+    ownerId: doc.shipment?.ownerId,
+    assignedUserIds: doc.shipment?.participants?.map((p) => p.userId),
   })
 
   if (!perm.allowed) {

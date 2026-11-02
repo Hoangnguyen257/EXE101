@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import { ROLE_PERMISSIONS_MATRIX } from '../lib/auth/role-matrix'
 
 const prisma = new PrismaClient()
 
@@ -69,48 +70,34 @@ async function main() {
   const managerRole = await prisma.role.findUnique({ where: { code: 'MANAGER' } })
   const staffRole = await prisma.role.findUnique({ where: { code: 'STAFF' } })
 
-  if (adminRole) {
-    for (const p of allPerms) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: adminRole.id, permissionId: p.id } },
-        update: {},
-        create: { roleId: adminRole.id, permissionId: p.id },
-      })
-    }
-  }
+  // Đồng bộ ma trận quyền chuẩn từ lib/auth/role-matrix.ts (Single Source of Truth)
+  // và dọn dẹp triệt để các quyền dư thừa trong database
+  const roleList = [
+    { code: 'ADMIN' as const, role: adminRole },
+    { code: 'MANAGER' as const, role: managerRole },
+    { code: 'STAFF' as const, role: staffRole },
+  ]
 
-  // Manager: Documents (all except DELETE), Shipments (all except DELETE), Users (VIEW only), Audit (VIEW only), Archive (all except DELETE)
-  if (managerRole) {
-    const managerPerms = allPerms.filter((p) => {
-      if (['USERS', 'DEPARTMENTS', 'AUDIT'].includes(p.module)) {
-        return p.action === 'VIEW'
-      }
-      if (p.module === 'SETTINGS') return false
-      if (p.action === 'DELETE') return false
-      return true
-    })
-    for (const p of managerPerms) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: managerRole.id, permissionId: p.id } },
-        update: {},
-        create: { roleId: managerRole.id, permissionId: p.id },
-      })
-    }
-  }
+  for (const { code, role } of roleList) {
+    if (!role) continue
+    const expectedCodes = new Set(ROLE_PERMISSIONS_MATRIX[code])
+    const expectedPerms = allPerms.filter((p) => expectedCodes.has(p.code))
+    const expectedPermIds = new Set(expectedPerms.map((p) => p.id))
 
-  // Staff: VIEW, UPLOAD, DOWNLOAD, EDIT for documents/shipments assigned
-  if (staffRole) {
-    const staffPerms = allPerms.filter((p) => {
-      if (['DOCUMENTS', 'SHIPMENTS', 'ARCHIVE'].includes(p.module)) {
-        return ['VIEW', 'UPLOAD', 'DOWNLOAD', 'EDIT'].includes(p.action)
-      }
-      return false
+    // 1. Xóa bỏ các quyền cũ/thừa không thuộc ma trận chuẩn
+    await prisma.rolePermission.deleteMany({
+      where: {
+        roleId: role.id,
+        permissionId: { notIn: Array.from(expectedPermIds) },
+      },
     })
-    for (const p of staffPerms) {
+
+    // 2. Cập nhật đầy đủ các quyền theo chuẩn
+    for (const p of expectedPerms) {
       await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: staffRole.id, permissionId: p.id } },
+        where: { roleId_permissionId: { roleId: role.id, permissionId: p.id } },
         update: {},
-        create: { roleId: staffRole.id, permissionId: p.id },
+        create: { roleId: role.id, permissionId: p.id },
       })
     }
   }
@@ -241,6 +228,12 @@ async function main() {
   // --- NẾU CHẠY CHẾ ĐỘ TEST/DEVELOPMENT (--test) ---
   console.log('--- Đang khởi tạo thêm dữ liệu mẫu cho môi trường kiểm thử (--test) ---')
   const testPasswordHash = await bcrypt.hash('TestOnly@2026!', 10)
+
+  // Cập nhật tài khoản Admin cho môi trường test dùng chung mật khẩu TestOnly@2026!
+  await prisma.user.update({
+    where: { email: 'admin@tml.vn' },
+    data: { passwordHash: testPasswordHash, mustChangePassword: false },
+  })
 
   const usersData = [
     {
@@ -475,6 +468,18 @@ async function main() {
     }
   }
 
+  // Phân công nhân viên DOC (u4 - lan.pham) tham gia lô hàng s2 (thuộc EXP do u3 quản lý)
+  // để kiểm thử mô hình phân quyền: Trưởng phòng DOC thấy việc của nhân viên DOC trên lô EXP
+  await prisma.shipmentParticipant.upsert({
+    where: { shipmentId_userId: { shipmentId: 's2', userId: 'u4' } },
+    update: { roleInShipment: 'DOC_SPECIALIST' },
+    create: {
+      shipmentId: 's2',
+      userId: 'u4',
+      roleInShipment: 'DOC_SPECIALIST',
+    },
+  })
+
   // 10. Vault directory on disk
   const vaultDir = path.resolve(process.cwd(), 'storage_vault')
   if (!fs.existsSync(vaultDir)) {
@@ -601,9 +606,13 @@ async function main() {
     fs.writeFileSync(filePath, validPdfBuffer)
     fs.writeFileSync(keyPath, validPdfBuffer)
 
+    const shipmentObj = shipments.find((s) => s.id === doc.shipmentId)
+    const docDeptId = shipmentObj ? deptMap[shipmentObj.deptCode] : deptMap['DOC']
+
     const createdDoc = await prisma.document.upsert({
       where: { id: doc.id },
       update: {
+        departmentId: docDeptId,
         fileSizeBytes: validPdfBuffer.length,
       },
       create: {
@@ -611,6 +620,7 @@ async function main() {
         orgId: org.id,
         shipmentId: doc.shipmentId,
         customerId: doc.customerId,
+        departmentId: docDeptId,
         type: doc.type,
         title: doc.title,
         fileName: doc.fileName,

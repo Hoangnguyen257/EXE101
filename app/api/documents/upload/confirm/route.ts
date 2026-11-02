@@ -68,6 +68,13 @@ export async function POST(req: Request) {
       )
     }
 
+    if (!pending.shipment.departmentId) {
+      return NextResponse.json(
+        { error: 'Lô hàng chưa có phòng ban trực thuộc. Không thể hoàn tất tải lên.' },
+        { status: 400 }
+      )
+    }
+
     // 2. Kiểm tra tập tin đã thật sự tồn tại trên kho lưu trữ
     const provider = getStorageProvider()
     const exists = await provider.exists(pending.storageKey)
@@ -155,7 +162,7 @@ export async function POST(req: Request) {
             orgId: pending.orgId,
             shipmentId: pending.shipment.id,
             customerId: pending.shipment.customerId,
-            departmentId: pending.shipment.departmentId,
+            departmentId: pending.shipment.departmentId!,
             type: pending.docType,
             customTypeName: pending.customTypeName,
             title,

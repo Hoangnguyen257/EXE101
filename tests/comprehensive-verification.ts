@@ -67,6 +67,7 @@ async function runTechnicalVerification() {
         orgId: 'invalid_org_id_123',
         shipmentId: 'invalid_shipment_id_123',
         customerId: 'invalid_cust_id_123',
+        departmentId: 'invalid_dept_id_123',
         type: 'BL',
         title: 'FK Test',
         fileName: 'test.pdf',

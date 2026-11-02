@@ -220,31 +220,29 @@ export async function login(
     data: { failedAttempts: 0, lockedUntil: null, lastActiveAt: new Date() },
   })
 
-  // Khởi tạo Session trong Database
+  // Khởi tạo Session ID & Ký số JWT an toàn trước khi lưu DB để tránh trạng thái pending
+  const sessionId = crypto.randomUUID()
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 ngày
-  const session = await prisma.session.create({
-    data: {
-      userId: user.id,
-      tokenHash: 'pending',
-      ipAddress,
-      userAgent,
-      expiresAt,
-    },
-  })
 
-  // Ký số JWT an toàn với sessionId và claims
   const token = await signSessionToken({
     userId: user.id,
     email: user.email,
     role: user.roleCode,
-    sessionId: session.id,
+    sessionId,
   })
 
-  // Lưu trữ mã băm SHA-256 của token vào database
   const tokenHash = hashToken(token)
-  await prisma.session.update({
-    where: { id: session.id },
-    data: { tokenHash },
+
+  // Khởi tạo Session trong Database nguyên tử (atomic) với tokenHash thực tế
+  const session = await prisma.session.create({
+    data: {
+      id: sessionId,
+      userId: user.id,
+      tokenHash,
+      ipAddress,
+      userAgent,
+      expiresAt,
+    },
   })
 
   // Ghi nhật ký đăng nhập và Audit Log

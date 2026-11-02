@@ -131,7 +131,7 @@ export function DocumentsListClient({
       <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed py-16 text-center">
         <FileTextIcon className="size-12 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Chưa có chứng từ nào trong kho dữ liệu.</p>
-        <Button variant="outline" render={<Link href="/scan" />}>
+        <Button variant="outline" render={<Link href="/scan" />} nativeButton={false}>
           Quét chứng từ đầu tiên
         </Button>
       </div>
@@ -218,6 +218,7 @@ export function DocumentsListClient({
                         variant="ghost"
                         size="icon"
                         render={<Link href={`/documents/${doc.id}`} />}
+                        nativeButton={false}
                         title="Xem chi tiết"
                       >
                         <EyeIcon className="size-4" />
@@ -226,6 +227,7 @@ export function DocumentsListClient({
                         variant="ghost"
                         size="icon"
                         render={<Link href={`/documents/${doc.id}/edit`} />}
+                        nativeButton={false}
                         title="Chỉnh sửa nội dung"
                       >
                         <PencilIcon className="size-4" />

@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
@@ -49,7 +50,10 @@ function Button({
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   // Tự động gán nativeButton={false} khi render phần tử tùy chỉnh (như Next.js <Link> hoặc <a>)
   // để thỏa mãn chuẩn Accessibility của Base UI và tránh cảnh báo console error
-  const resolvedNativeButton = nativeButton ?? (render ? false : undefined)
+  const isCustomElement =
+    render !== undefined &&
+    (!React.isValidElement(render) || render.type !== "button")
+  const resolvedNativeButton = nativeButton ?? (isCustomElement ? false : undefined)
 
   return (
     <ButtonPrimitive

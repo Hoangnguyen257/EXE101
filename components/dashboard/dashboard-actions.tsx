@@ -13,7 +13,7 @@ export function DashboardActions() {
         <SearchIcon data-icon="inline-start" />
         Tìm chứng từ
       </Button>
-      <Button variant="outline" render={<Link href="/scan" />}>
+      <Button variant="outline" render={<Link href="/scan" />} nativeButton={false}>
         <ScanLineIcon data-icon="inline-start" />
         Quét / Chụp ảnh
       </Button>

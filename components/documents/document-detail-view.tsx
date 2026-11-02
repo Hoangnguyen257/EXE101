@@ -58,6 +58,7 @@ export function DocumentDetailView({
           variant="ghost"
           size="sm"
           render={<Link href={`/shipments/${shipment.id}`} />}
+          nativeButton={false}
           className="-ml-2 text-muted-foreground hover:text-foreground"
         >
           <ArrowLeftIcon className="mr-1.5 size-4" />
@@ -91,6 +92,7 @@ export function DocumentDetailView({
             size="sm"
             variant="outline"
             render={<Link href={`/documents/${document.id}/edit`} />}
+            nativeButton={false}
           >
             <PencilIcon data-icon="inline-start" />
             Chỉnh sửa nội dung

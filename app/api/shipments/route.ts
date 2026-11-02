@@ -21,26 +21,23 @@ export async function GET(req: Request) {
   const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20))
   const skip = (page - 1) * limit
 
-  const whereClause: any = { orgId: sessionUser.orgId }
+  const permissionWhere = await PermissionService.buildShipmentWhereInput(sessionUser, 'VIEW')
+  const andConditions: any[] = [permissionWhere]
 
-  if (sessionUser.role !== 'ADMIN') {
-    const userDeptIds = sessionUser.departments.map((d) => d.id)
-    whereClause.OR = [
-      { departmentId: { in: userDeptIds } },
-      { ownerId: sessionUser.id },
-    ]
-  }
-
-  if (customerId && customerId !== 'all') whereClause.customerId = customerId
-  if (status && status !== 'all') whereClause.status = status
+  if (customerId && customerId !== 'all') andConditions.push({ customerId })
+  if (status && status !== 'all') andConditions.push({ status })
   if (q && q.trim()) {
     const trimmed = q.trim()
-    whereClause.OR = [
-      ...(whereClause.OR || []),
-      { jobNo: { contains: trimmed } },
-      { blNo: { contains: trimmed } },
-    ]
+    andConditions.push({
+      OR: [
+        { jobNo: { contains: trimmed } },
+        { blNo: { contains: trimmed } },
+        { goodsDesc: { contains: trimmed } },
+      ],
+    })
   }
+
+  const whereClause = { AND: andConditions }
 
   const [total, shipments] = await Promise.all([
     prisma.shipment.count({ where: whereClause }),

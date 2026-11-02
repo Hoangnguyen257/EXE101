@@ -41,7 +41,10 @@ async function runReliabilityTestSuite() {
   console.log('='.repeat(80))
 
   // Đăng nhập tài khoản Quản trị viên lấy session token
-  const loginRes = await login('admin@tml.vn', 'Tml@2026!', '127.0.0.1')
+  let loginRes = await login('admin@tml.vn', 'TestOnly@2026!', '127.0.0.1')
+  if (!loginRes.success) {
+    loginRes = await login('admin@tml.vn', 'Tml@2026!', '127.0.0.1')
+  }
   if (!loginRes.success || !loginRes.token) {
     throw new Error('Đăng nhập admin thất bại để lấy session token kiểm thử.')
   }
@@ -57,7 +60,7 @@ async function runReliabilityTestSuite() {
 
   const customer = await prisma.customer.findFirst()
   if (!customer) throw new Error('Không tìm thấy Customer.')
-  const department = await prisma.department.findFirst()
+  const department = await prisma.department.findFirstOrThrow()
 
   // Tạo 2 lô hàng riêng biệt cho test chống trùng lặp
   const shipmentA = await prisma.shipment.create({
@@ -73,7 +76,7 @@ async function runReliabilityTestSuite() {
       mode: 'sea',
       status: 'booking',
       customerId: customer.id,
-      departmentId: department?.id,
+      departmentId: department.id,
       ownerId: adminUser.id,
     },
   })
@@ -91,7 +94,7 @@ async function runReliabilityTestSuite() {
       mode: 'sea',
       status: 'booking',
       customerId: customer.id,
-      departmentId: department?.id,
+      departmentId: department.id,
       ownerId: adminUser.id,
     },
   })
@@ -111,7 +114,7 @@ async function runReliabilityTestSuite() {
         orgId: org.id,
         shipmentId: shipmentA.id,
         customerId: shipmentA.customerId,
-        departmentId: shipmentA.departmentId,
+        departmentId: department.id,
         type: 'BL',
         title: 'Chứng từ kiểm thử mất file vật lý',
         fileName: 'Missing_File.pdf',
@@ -200,7 +203,7 @@ async function runReliabilityTestSuite() {
         orgId: org.id,
         shipmentId: shipmentA.id,
         customerId: shipmentA.customerId,
-        departmentId: shipmentA.departmentId,
+        departmentId: department.id,
         type: 'OTHER',
         title: 'Bản kê khai chứng từ hình ảnh',
         fileName: rawFileName,
@@ -266,6 +269,7 @@ async function runReliabilityTestSuite() {
             orgId: 'org_non_existent_fake_id_12345',
             shipmentId: 'shipment_fake_id_12345',
             customerId: 'customer_fake_id',
+            departmentId: department.id,
             type: 'BL',
             title: 'Fail Document',
             fileName: 'fail.pdf',

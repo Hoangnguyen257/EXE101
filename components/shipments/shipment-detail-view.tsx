@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeftIcon,
@@ -14,16 +15,36 @@ import {
   BuildingIcon,
   MapPinIcon,
   UserIcon,
+  UserPlusIcon,
+  Trash2Icon,
   CalendarIcon,
   PackageIcon,
   FileTextIcon,
   Share2Icon,
+  UsersIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import { ShipmentStatusBadge } from '@/components/app/status-badges'
 import { DocumentChecklist } from '@/components/shipments/document-checklist'
 import { useApp } from '@/components/app/app-provider'
@@ -37,6 +58,20 @@ const MODE_CONFIG = {
   road: { label: 'Đường bộ (Road)', icon: TruckIcon, color: 'text-amber-500' },
 }
 
+export interface ShipmentParticipantItem {
+  id: string
+  userId: string
+  roleInShipment: string
+  assignedAt: string
+  user?: {
+    id: string
+    name: string
+    email: string
+    initials: string
+    roleCode: string
+  }
+}
+
 interface ShipmentDetailViewProps {
   shipment: ShipmentWithProgress
   customer: Customer
@@ -45,6 +80,7 @@ interface ShipmentDetailViewProps {
   activities: Activity[]
   goods: string
   users: User[]
+  initialParticipants?: ShipmentParticipantItem[]
 }
 
 export function ShipmentDetailView({
@@ -55,10 +91,65 @@ export function ShipmentDetailView({
   activities,
   goods,
   users,
+  initialParticipants,
 }: ShipmentDetailViewProps) {
   const { openUpload, openShare } = useApp()
   const ModeIcon = MODE_CONFIG[shipment.mode]?.icon ?? ShipIcon
   const modeLabel = MODE_CONFIG[shipment.mode]?.label ?? 'Vận tải'
+
+  const [participants, setParticipants] = useState<ShipmentParticipantItem[]>(initialParticipants || [])
+  const [isAssignOpen, setIsAssignOpen] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [selectedRole, setSelectedRole] = useState('DOC_SPECIALIST')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleAddParticipant = async () => {
+    if (!selectedUserId) {
+      toast.error('Vui lòng chọn nhân viên cần phân công.')
+      return
+    }
+    setIsSubmitting(true)
+    try {
+      const res = await fetch(`/api/shipments/${shipment.id}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: selectedUserId, roleInShipment: selectedRole }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error('Không thành công', { description: data.error })
+        return
+      }
+      toast.success('Phân công thành công', { description: data.message })
+      setParticipants((prev) => {
+        const filtered = prev.filter((p) => p.userId !== selectedUserId)
+        return [...filtered, data.participant]
+      })
+      setIsAssignOpen(false)
+      setSelectedUserId('')
+    } catch {
+      toast.error('Lỗi kết nối khi phân công nhân sự.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleRemoveParticipant = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/shipments/${shipment.id}/participants?userId=${userId}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error('Không thể gỡ bỏ', { description: data.error })
+        return
+      }
+      toast.success('Đã gỡ bỏ phân công nhân sự.')
+      setParticipants((prev) => prev.filter((p) => p.userId !== userId))
+    } catch {
+      toast.error('Lỗi kết nối khi gỡ bỏ phân công.')
+    }
+  }
 
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? id
 
@@ -66,7 +157,7 @@ export function ShipmentDetailView({
     <div className="flex flex-col gap-6">
       {/* Back button & Breadcrumb */}
       <div>
-        <Button variant="ghost" size="sm" render={<Link href="/shipments" />} className="-ml-2 text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="sm" render={<Link href="/shipments" />} nativeButton={false} className="-ml-2 text-muted-foreground hover:text-foreground">
           <ArrowLeftIcon className="mr-1.5 size-4" />
           Quay lại danh sách lô hàng
         </Button>
@@ -103,6 +194,7 @@ export function ShipmentDetailView({
             size="sm"
             variant="outline"
             render={<Link href="/scan" />}
+            nativeButton={false}
           >
             <CameraIcon data-icon="inline-start" />
             Quét chứng từ
@@ -272,6 +364,119 @@ export function ShipmentDetailView({
           </div>
         </CardContent>
       </Card>
+
+      {/* Shipment Participants Card */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div className="flex flex-col gap-1">
+            <CardTitle className="text-base flex items-center gap-2">
+              <UsersIcon className="size-4 text-primary" />
+              Nhân sự phân công tham gia lô hàng
+            </CardTitle>
+            <CardDescription>
+              Các nhân viên từ các phòng ban nghiệp vụ (Chứng từ, Khai thác, Hải quan) được phân công phụ trách lô hàng này
+            </CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setIsAssignOpen(true)}>
+            <UserPlusIcon className="mr-1.5 size-4" />
+            Phân công nhân sự
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {participants.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic py-2">
+              Chưa có nhân sự phụ thêm nào được phân công. Người phụ trách chính: <span className="font-medium text-foreground">{owner.name}</span>.
+            </p>
+          ) : (
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              {participants.map((p) => {
+                const assignedUser = p.user || users.find((u) => u.id === p.userId)
+                return (
+                  <div
+                    key={p.id || p.userId}
+                    className="flex items-center justify-between rounded-lg border bg-muted/20 p-3 text-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                        {assignedUser?.initials || assignedUser?.name?.slice(0, 2) || 'NV'}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{assignedUser?.name || p.userId}</span>
+                        <span className="text-xs text-muted-foreground">{p.roleInShipment}</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemoveParticipant(p.userId)}
+                      title="Gỡ bỏ phân công"
+                    >
+                      <Trash2Icon className="size-3.5" />
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog phân công nhân sự */}
+      <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Phân công nhân viên vào lô hàng</DialogTitle>
+            <DialogDescription>
+              Nhân viên được phân công sẽ có toàn quyền xem và xử lý chứng từ trong lô hàng {shipment.jobNo}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="assignUser">Chọn nhân viên</Label>
+              <Select value={selectedUserId} onValueChange={(val) => setSelectedUserId(val ?? '')}>
+                <SelectTrigger id="assignUser" className="w-full">
+                  <SelectValue placeholder="-- Chọn nhân viên trong tổ chức --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users
+                    .filter((u) => u.id !== owner.id && !participants.some((p) => p.userId === u.id))
+                    .map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name} ({u.email})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="assignRole">Vai trò nhiệm vụ trong lô hàng</Label>
+              <Select value={selectedRole} onValueChange={(val) => setSelectedRole(val ?? 'DOC_SPECIALIST')}>
+                <SelectTrigger id="assignRole" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DOC_SPECIALIST">Chuyên viên Chứng từ (DOC Specialist)</SelectItem>
+                  <SelectItem value="CUSTOMS_STAFF">Nhân viên Hải quan (Customs Staff)</SelectItem>
+                  <SelectItem value="OPS_STAFF">Nhân viên Giao nhận / Khai thác (Ops Staff)</SelectItem>
+                  <SelectItem value="STAFF">Nhân viên phụ trách chung (Staff)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setIsAssignOpen(false)} disabled={isSubmitting}>
+              Hủy
+            </Button>
+            <Button onClick={handleAddParticipant} disabled={isSubmitting || !selectedUserId}>
+              {isSubmitting ? 'Đang lưu...' : 'Xác nhận phân công'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Document Checklist: What files exist, what files are missing */}
       <DocumentChecklist

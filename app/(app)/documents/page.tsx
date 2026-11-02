@@ -17,7 +17,7 @@ export default async function DocumentsPage() {
         title="Quản lý Chứng từ"
         description="Toàn bộ chứng từ đã được lưu trữ an toàn trong kho dữ liệu tập trung của doanh nghiệp."
         actions={
-          <Button render={<Link href="/scan" />}>
+          <Button render={<Link href="/scan" />} nativeButton={false}>
             <ScanLineIcon className="mr-2 size-4" />
             Quét chứng từ mới
           </Button>

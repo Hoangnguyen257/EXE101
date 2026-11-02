@@ -242,6 +242,7 @@ export function UploadDialog({ open, onOpenChange, preset, initialFiles, shipmen
                 variant="outline"
                 size="sm"
                 render={<Link href="/scan" onClick={() => onOpenChange(false)} />}
+                nativeButton={false}
               >
                 <CameraIcon data-icon="inline-start" />
                 Chụp ảnh / Quét qua Camera

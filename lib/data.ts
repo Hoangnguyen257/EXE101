@@ -3,6 +3,7 @@ import { daysUntil } from './labels'
 import { DOC_TYPE_LABEL } from './labels'
 import { getRequiredDocTypes, type AlertItem, type DocType, type DocumentFile, type Shipment } from './types'
 import { getSessionUser } from './auth/auth-service'
+import { PermissionService } from './auth/permission-service'
 
 export interface ShipmentWithProgress extends Shipment {
   customerName: string
@@ -28,18 +29,7 @@ function calculateProgress(s: Shipment, docTypes: DocType[]): ShipmentWithProgre
 
 export async function getShipments(tokenOverride?: string): Promise<ShipmentWithProgress[]> {
   const sessionUser = await getSessionUser(tokenOverride)
-
-  const whereClause: any = {}
-  if (sessionUser) {
-    whereClause.orgId = sessionUser.orgId
-    if (sessionUser.role !== 'ADMIN') {
-      const userDeptIds = sessionUser.departments.map((d) => d.id)
-      whereClause.OR = [
-        { departmentId: { in: userDeptIds } },
-        { ownerId: sessionUser.id },
-      ]
-    }
-  }
+  const whereClause = await PermissionService.buildShipmentWhereInput(sessionUser, 'VIEW')
 
   const rawShipments = await prisma.shipment.findMany({
     where: whereClause,
@@ -95,6 +85,13 @@ export async function getShipment(id: string) {
     include: {
       customer: true,
       owner: true,
+      participants: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true, initials: true, roleCode: true },
+          },
+        },
+      },
       documents: {
         where: { isDeleted: false },
         include: { versions: true },
@@ -192,46 +189,20 @@ export async function getShipment(id: string) {
       at: a.createdAt.toISOString(),
     })),
     goods: s.goodsDesc ?? 'Hàng hóa thông thường',
+    participants: s.participants.map((p) => ({
+      id: p.id,
+      userId: p.userId,
+      roleInShipment: p.roleInShipment,
+      assignedAt: p.assignedAt.toISOString(),
+      user: p.user,
+    })),
   }
 }
 
 export async function getDocuments(tokenOverride?: string): Promise<DocumentFile[]> {
   const sessionUser = await getSessionUser(tokenOverride)
-
-  const whereClause: any = { isDeleted: false }
-
-  if (sessionUser) {
-    whereClause.orgId = sessionUser.orgId
-
-    if (sessionUser.role !== 'ADMIN') {
-      const userDeptIds = sessionUser.departments.map((d) => d.id)
-
-      const shares = await prisma.documentAccessPermission.findMany({
-        where: {
-          OR: [
-            { targetUserId: sessionUser.id },
-            { targetDeptId: { in: userDeptIds } },
-          ],
-          AND: [
-            {
-              OR: [
-                { expiresAt: null },
-                { expiresAt: { gt: new Date() } },
-              ],
-            },
-          ],
-        },
-        select: { documentId: true },
-      })
-      const sharedDocIds = shares.map((s) => s.documentId)
-
-      whereClause.OR = [
-        { departmentId: { in: userDeptIds } },
-        { createdBy: sessionUser.id },
-        { id: { in: sharedDocIds } },
-      ]
-    }
-  }
+  const permissionWhere = await PermissionService.buildDocumentWhereInput(sessionUser, 'VIEW')
+  const whereClause = { AND: [{ isDeleted: false }, permissionWhere] }
 
   const docs = await prisma.document.findMany({
     where: whereClause,
@@ -277,7 +248,7 @@ export async function getDocument(id: string) {
   const d = await prisma.document.findUnique({
     where: { id },
     include: {
-      shipment: true,
+      shipment: { include: { participants: true } },
       customer: true,
       archiveBox: true,
       versions: { orderBy: { versionNumber: 'desc' } },
@@ -332,6 +303,7 @@ export async function getDocument(id: string) {
       eta: d.shipment.eta,
       status: d.shipment.status as any,
       createdAt: d.shipment.createdAt.toISOString(),
+      participants: d.shipment.participants,
     },
     customer: {
       id: d.customer.id,
@@ -452,16 +424,12 @@ export async function getAlerts(shipmentId?: string, tokenOverride?: string): Pr
   }
 
   const sessionUser = await getSessionUser(tokenOverride)
-  const docWhere: any = { isDeleted: false, retentionUntil: { not: null } }
-  if (sessionUser) {
-    docWhere.orgId = sessionUser.orgId
-    if (sessionUser.role !== 'ADMIN') {
-      const userDeptIds = sessionUser.departments.map((d) => d.id)
-      docWhere.OR = [
-        { departmentId: { in: userDeptIds } },
-        { createdBy: sessionUser.id },
-      ]
-    }
+  const docPermissionWhere = await PermissionService.buildDocumentWhereInput(sessionUser, 'VIEW')
+  const docWhere = {
+    AND: [
+      { isDeleted: false, retentionUntil: { not: null } },
+      docPermissionWhere,
+    ],
   }
 
   const docs = await prisma.document.findMany({
