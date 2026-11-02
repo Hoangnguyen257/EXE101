@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
 import { loginHardened, UNIFIED_AUTH_ERROR_MESSAGE, SESSION_COOKIE_NAME } from '@/lib/auth/auth-service'
+import { ensureDatabaseInitialized } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
+    await ensureDatabaseInitialized()
+
     const body = await req.json()
     const { email, password, captchaToken } = body
 

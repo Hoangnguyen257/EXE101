@@ -50,12 +50,18 @@ export function ensurePrismaProvider(forcedProvider?: 'sqlite' | 'postgresql'): 
     const hasDb = (fs.existsSync(devDbPath) && fs.statSync(devDbPath).size > 0) ||
                   (fs.existsSync(rootDbPath) && fs.statSync(rootDbPath).size > 0)
 
-    if (!hasDb) {
-      console.log('[Prisma Deploy Init] Không tìm thấy dev.db (do đã gỡ khỏi git). Đang tự động tạo cấu trúc bảng...')
+    const buildEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      DATABASE_URL: process.env.DATABASE_URL || 'file:./dev.db',
+      JWT_SECRET: process.env.JWT_SECRET || 'tml-enterprise-build-secret-key-min-32-chars-2026',
+    }
+
+    if (!hasDb || process.env.VERCEL) {
+      console.log('[Prisma Deploy Init] Đang tự động tạo cấu trúc bảng SQLite...')
       try {
-        execSync('npx prisma db push --skip-generate', { stdio: 'inherit' })
+        execSync('npx prisma db push --skip-generate --accept-data-loss', { env: buildEnv, stdio: 'inherit' })
         console.log('[Prisma Deploy Init] Đang nạp dữ liệu mẫu ban đầu (seed test)...')
-        execSync('npx tsx prisma/seed.ts --test', { stdio: 'inherit' })
+        execSync('npx tsx prisma/seed.ts --test', { env: buildEnv, stdio: 'inherit' })
         if (fs.existsSync(devDbPath)) {
           fs.copyFileSync(devDbPath, rootDbPath)
         }

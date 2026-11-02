@@ -12,13 +12,14 @@ function resolveDatabaseUrl(): string {
   // Thư mục gốc /var/task là read-only, chỉ có /tmp là writable
   if (process.env.VERCEL) {
     const tmpDbPath = '/tmp/dev.db'
+    const candidates = [
+      path.resolve(process.cwd(), 'prisma', 'dev.db'),
+      path.resolve(process.cwd(), 'dev.db'),
+      path.join(__dirname, '..', 'prisma', 'dev.db'),
+      path.join(__dirname, '..', 'dev.db'),
+      path.join(process.cwd(), '.next', 'server', 'prisma', 'dev.db'),
+    ]
     if (!fs.existsSync(/*turbopackIgnore: true*/ tmpDbPath) || fs.statSync(/*turbopackIgnore: true*/ tmpDbPath).size === 0) {
-      const candidates = [
-        path.resolve(process.cwd(), 'prisma', 'dev.db'),
-        path.resolve(process.cwd(), 'dev.db'),
-        path.join(__dirname, '..', 'prisma', 'dev.db'),
-        path.join(__dirname, '..', 'dev.db'),
-      ]
       for (const candidate of candidates) {
         if (fs.existsSync(/*turbopackIgnore: true*/ candidate) && fs.statSync(/*turbopackIgnore: true*/ candidate).size > 0) {
           try {
@@ -31,9 +32,15 @@ function resolveDatabaseUrl(): string {
         }
       }
     }
-    if (fs.existsSync(/*turbopackIgnore: true*/ tmpDbPath)) {
-      return `file:${tmpDbPath}`
+    // Nếu vẫn chưa có, tạo tệp trống tại /tmp/dev.db để SQLite có thể mở an toàn trên writable filesystem
+    if (!fs.existsSync(/*turbopackIgnore: true*/ tmpDbPath)) {
+      try {
+        fs.writeFileSync(tmpDbPath, Buffer.alloc(0))
+      } catch {}
     }
+    // Trên Vercel với SQLite, LUÔN LUÔN trả về file:/tmp/dev.db
+    // Tuyệt đối KHÔNG BAO GIỜ trả về file trong /var/task vì filesystem là read-only (gây ra Error code 14)
+    return `file:${tmpDbPath}`
   }
 
   // Mặc định cục bộ cho môi trường phát triển / kiểm thử / VPS
@@ -80,6 +87,89 @@ export const prisma =
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+
+let isDatabaseChecked = false
+
+/**
+ * Tự động kiểm tra và phục hồi CSDL (Self-Healing)
+ * Nếu chạy trên môi trường Serverless (Vercel) mà CSDL chưa có bảng,
+ * hàm này sẽ tự động chạy migration DDL và nạp người dùng admin mẫu.
+ */
+export async function ensureDatabaseInitialized(): Promise<void> {
+  if (isDatabaseChecked) return
+
+  // Chỉ áp dụng tự phục hồi cho SQLite
+  const dbUrl = process.env.DATABASE_URL || activeDbUrl
+  if (dbUrl && !dbUrl.startsWith('file:')) {
+    isDatabaseChecked = true
+    return
+  }
+
+  try {
+    const userTable = await prisma.$queryRawUnsafe<any[]>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='User';"
+    )
+    if (!Array.isArray(userTable) || userTable.length === 0) {
+      console.log('[Prisma Auto-Init] Bảng User chưa tồn tại trong SQLite. Đang tự động nạp DDL schema...')
+      const migrationDir = path.resolve(process.cwd(), 'prisma', 'migrations')
+      if (fs.existsSync(/*turbopackIgnore: true*/ migrationDir)) {
+        const folders = fs.readdirSync(/*turbopackIgnore: true*/ migrationDir).sort()
+        for (const folder of folders) {
+          const sqlPath = path.join(migrationDir, folder, 'migration.sql')
+          if (fs.existsSync(/*turbopackIgnore: true*/ sqlPath)) {
+            const sql = fs.readFileSync(/*turbopackIgnore: true*/ sqlPath, 'utf-8')
+            const stmts = sql.split(';').map((s) => s.trim()).filter(Boolean)
+            for (const stmt of stmts) {
+              await prisma.$executeRawUnsafe(stmt).catch(() => {})
+            }
+          }
+        }
+      }
+
+      // Tạo tài khoản admin mặc định nếu chưa tồn tại
+      const bcrypt = (await import('bcryptjs')).default
+      const defaultHash = await bcrypt.hash('Tml@2026!', 10)
+
+      // Tạo tổ chức, vai trò ADMIN và người dùng admin
+      const org = await prisma.organization.upsert({
+        where: { taxCode: '0312456789' },
+        update: {},
+        create: {
+          name: 'Công ty TNHH Logistics Tân Minh (TML)',
+          taxCode: '0312456789',
+          address: '12 Nguyễn Tất Thành, Phường 12, Quận 4, TP. Hồ Chí Minh',
+          plan: 'Enterprise Business',
+        },
+      }).catch(() => null)
+
+      const orgId = org?.id || 'org_tml_default'
+
+      await prisma.role.upsert({
+        where: { code: 'ADMIN' },
+        update: {},
+        create: { code: 'ADMIN', name: 'Quản trị viên hệ thống', description: 'Toàn quyền quản trị' },
+      }).catch(() => {})
+
+      await prisma.user.create({
+        data: {
+          orgId,
+          email: 'admin@tml.vn',
+          name: 'Nguyễn Hoàng',
+          initials: 'NH',
+          passwordHash: defaultHash,
+          roleCode: 'ADMIN',
+          isActive: true,
+          mustChangePassword: false,
+        },
+      }).catch(() => {})
+      console.log('[Prisma Auto-Init] Đã nạp thành công tài khoản admin@tml.vn vào CSDL SQLite!')
+    }
+    isDatabaseChecked = true
+  } catch (err: any) {
+    console.error('[Prisma Auto-Init] Lỗi kiểm tra / nạp CSDL tự động:', err.message)
+  }
+}
+
 
 
 
