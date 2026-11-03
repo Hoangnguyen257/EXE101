@@ -144,18 +144,272 @@ export function extractLogisticsFields(rawText: string): ExtractedLogisticsData 
 }
 
 /**
- * Trích xuất văn bản từ tập tin PDF có Text Layer bằng thư viện pdf-parse thật sự
+ * Chuẩn hóa ký tự và định dạng logistics, khôi phục bảng mã tiếng Việt bị lỗi (mojibake)
  */
-export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+export function normalizeLogisticsText(text: string): string {
+  if (!text) return ''
+  let normalized = text.normalize('NFC')
+
+  // Khắc phục lỗi font đơn byte (WinAnsi/MacRoman) khi ghi chuỗi UTF-8 vào PDF
+  const DIACRITIC_REPLACEMENTS: [RegExp, string][] = [
+    [/V[ÆÂ]”›n\s*˜\s*˘¡n/gi, 'Vận đơn'],
+    [/V[ÆÂ]”›n\s*đơn/gi, 'Vận đơn'],
+    [/Hˆ‡a\s*˜\s*˘¡n/gi, 'Hóa đơn'],
+    [/Hóa\s*˜\s*˘¡n/gi, 'Hóa đơn'],
+    [/Phi[ÆÂ]”¿u\s*˜\s*ˆ‡ng\s*gˆ‡i/gi, 'Phiếu đóng gói'],
+    [/Phiếu\s*đóng\s*gói/gi, 'Phiếu đóng gói'],
+    [/Thˆ·ng\s*bˆ¡o\s*hˆ\s*ng\s*˜\s*[ÆÂ]”¿n/gi, 'Thông báo hàng đến'],
+    [/Thông\s*báo\s*hàng\s*đến/gi, 'Thông báo hàng đến'],
+    [/˜\s*˘\s*[ÆÂ]»\s*ng\s*bi[ÆÂ]»\s*n/gi, 'đường biển'],
+    [/th˘\s*˘¡ng\s*m[ÆÂ]”¡i/gi, 'thương mại'],
+    [/C[ẢA]NG\s*X[ẾE]P\s*H[ÀA]NG/gi, 'CẢNG XẾP HÀNG'],
+    [/C[ẢA]NG\s*D[ỠO]\s*H[ÀA]NG/gi, 'CẢNG DỠ HÀNG'],
+    [/L[ỆE]NH\s*GIAO\s*H[ÀA]NG\s*[ĐD]I[ỆE]N\s*T[ỬU]/gi, 'LỆNH GIAO HÀNG ĐIỆN TỬ'],
+    [/T[ỜO]\s*KHAI\s*H[ẢA]I\s*QUAN/gi, 'TỜ KHAI HẢI QUAN'],
+  ]
+
+  for (const [pattern, replacement] of DIACRITIC_REPLACEMENTS) {
+    normalized = normalized.replace(pattern, replacement)
+  }
+
+  // Chuẩn hóa khoảng trống cuối dòng và hạn chế nhiều dòng trống liên tiếp
+  return normalized
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .replace(/\n{4,}/g, '\n\n\n')
+    .trim()
+}
+
+export interface PdfLayoutResult {
+  text: string
+  pageCount: number
+  hasTextLayer: boolean
+  isScannedImage: boolean
+  pages: Array<{ pageNumber: number; text: string }>
+}
+
+/**
+ * Trích xuất bố cục văn bản 2D đa chiều từ PDF (Preserving Layout & Tables)
+ */
+export async function extractTextFromPdfWithLayout(buffer: Buffer): Promise<PdfLayoutResult> {
+  const result: PdfLayoutResult = {
+    text: '',
+    pageCount: 1,
+    hasTextLayer: false,
+    isScannedImage: false,
+    pages: [],
+  }
+
   try {
     const parser = new PDFParse({ data: buffer })
-    const data = await parser.getText()
+    const doc = await (parser as any).load()
+    const numPages = doc.numPages || 1
+    result.pageCount = numPages
+
+    const extractedPageTexts: string[] = []
+
+    for (let p = 1; p <= numPages; p++) {
+      const page = await doc.getPage(p)
+      const content = await page.getTextContent()
+      const rawItems = (content.items || []).filter(
+        (i: any) => typeof i?.str === 'string' && i.str.length > 0
+      )
+
+      let pageFormattedText = ''
+
+      if (rawItems.length >= 2) {
+        // Trích xuất theo tọa độ không gian 2D để tái tạo chuẩn xác bố cục tài liệu
+        const items = [...rawItems].sort((a: any, b: any) => {
+          const yDiff = b.transform[5] - a.transform[5]
+          if (Math.abs(yDiff) > 3.5) return yDiff
+          return a.transform[4] - b.transform[4]
+        })
+
+        const lines: Array<{ y: number; items: any[] }> = []
+        let currentLine: any[] = []
+        let currentY: number | null = null
+
+        for (const item of items) {
+          const itemY = item.transform[5]
+          const itemH = item.height || 10
+
+          if (currentY === null || Math.abs(itemY - currentY) <= Math.max(3.5, itemH * 0.4)) {
+            currentLine.push(item)
+            if (currentY === null) currentY = itemY
+          } else {
+            lines.push({ y: currentY, items: currentLine })
+            currentLine = [item]
+            currentY = itemY
+          }
+        }
+        if (currentLine.length > 0 && currentY !== null) {
+          lines.push({ y: currentY, items: currentLine })
+        }
+
+        const formattedLines: string[] = []
+        let prevY: number | null = null
+
+        for (const line of lines) {
+          if (prevY !== null && prevY - line.y > 18) {
+            formattedLines.push('') // Khoảng cách đoạn văn (Section break)
+          }
+          prevY = line.y
+
+          line.items.sort((a, b) => a.transform[4] - b.transform[4])
+          let lineStr = ''
+          let lastX = 0
+
+          for (const it of line.items) {
+            const x = it.transform[4]
+            if (lastX > 0) {
+              const gap = x - lastX
+              if (gap > 28) {
+                lineStr += '    ' // Cột bảng (Table column tab)
+              } else if (gap > 12) {
+                lineStr += '  ' // Khoảng cách giữa các trường dữ liệu
+              } else if (gap > 2 && !lineStr.endsWith(' ') && !it.str.startsWith(' ')) {
+                lineStr += ' '
+              }
+            }
+            lineStr += it.str
+            lastX = x + (it.width || 0)
+          }
+
+          formattedLines.push(lineStr.trimEnd())
+        }
+
+        pageFormattedText = formattedLines.join('\n').trim()
+      }
+
+      // Nếu trang không có Text Layer (scan ảnh thuần túy hoặc chữ < 15 ký tự)
+      const cleanChars = pageFormattedText.replace(/\s+/g, '')
+      if (cleanChars.length < 15) {
+        try {
+          const shot = await parser.getScreenshot({ scale: 1.5 })
+          const targetPageShot = shot.pages.find((sp: any) => sp.pageNumber === p) || shot.pages[p - 1]
+          if (targetPageShot?.dataUrl) {
+            const base64Data = targetPageShot.dataUrl.replace(/^data:image\/[a-z]+;base64,/, '')
+            const imgBuffer = Buffer.from(base64Data, 'base64')
+            const ocrRes = await recognizeImageWithTesseract(imgBuffer)
+            if (ocrRes.text && ocrRes.text.length > 10) {
+              pageFormattedText = ocrRes.text
+              result.isScannedImage = true
+            }
+          }
+        } catch (ocrErr) {
+          console.warn(`Lỗi OCR dự phòng cho trang ${p}:`, ocrErr)
+        }
+      } else {
+        result.hasTextLayer = true
+      }
+
+      const normalizedPage = normalizeLogisticsText(pageFormattedText)
+      extractedPageTexts.push(normalizedPage)
+      result.pages.push({ pageNumber: p, text: normalizedPage })
+
+      if (typeof page.cleanup === 'function') {
+        page.cleanup()
+      }
+    }
+
     await parser.destroy()
-    return (data.text || '').replace(/-- \d+ of \d+ --/g, '').trim()
+    result.text = extractedPageTexts.join('\n\n--- HẾT TRANG ---\n\n').trim()
+    return result
   } catch (err) {
-    console.warn('Lỗi phân tích cú pháp PDF qua pdf-parse, chuyển sang cơ chế fallback:', err)
-    return ''
+    console.warn('Lỗi phân tích cú pháp PDF layout, chuyển sang cơ chế fallback:', err)
+    const fallback = extractTextFromBuffer(buffer, 'document.pdf')
+    result.text = normalizeLogisticsText(fallback)
+    return result
   }
+}
+
+/**
+ * Trích xuất văn bản từ tập tin PDF có Text Layer bằng thư viện pdf-parse thật sự với bảo toàn định dạng
+ */
+export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+  const layoutResult = await extractTextFromPdfWithLayout(buffer)
+  return layoutResult.text
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * Sinh tài liệu HTML có cấu trúc chuẩn mực cho trình soạn thảo TipTap và giao diện xem chi tiết
+ * Giữ nguyên bố cục gốc: Bảng biểu, các trường Logistics, khoảng cách dòng, cột và định dạng
+ */
+export function generateStructuredDocumentHtml(
+  title: string,
+  formattedText: string,
+  logistics: ExtractedLogisticsData
+): string {
+  const safeTitle = escapeHtml(title)
+  const safeText = escapeHtml(formattedText || '')
+
+  const metaRows: string[] = []
+  if (logistics.blNo) {
+    metaRows.push(`<tr><td class="border border-slate-300 p-2 font-medium bg-slate-50">Số Vận đơn (B/L No):</td><td class="border border-slate-300 p-2 font-mono font-semibold text-primary">${escapeHtml(logistics.blNo)}</td></tr>`)
+  }
+  if (logistics.jobNo) {
+    metaRows.push(`<tr><td class="border border-slate-300 p-2 font-medium bg-slate-50">Mã Lô hàng (Job No):</td><td class="border border-slate-300 p-2 font-mono font-semibold">${escapeHtml(logistics.jobNo)}</td></tr>`)
+  }
+  if (logistics.invoiceNo) {
+    metaRows.push(`<tr><td class="border border-slate-300 p-2 font-medium bg-slate-50">Số Hóa đơn (Invoice):</td><td class="border border-slate-300 p-2 font-mono">${escapeHtml(logistics.invoiceNo)}</td></tr>`)
+  }
+  if (logistics.containerNo) {
+    const allContainers = logistics.containers && logistics.containers.length > 1
+      ? logistics.containers.join(', ')
+      : logistics.containerNo
+    metaRows.push(`<tr><td class="border border-slate-300 p-2 font-medium bg-slate-50">Số Container:</td><td class="border border-slate-300 p-2 font-mono font-semibold">${escapeHtml(allContainers)}</td></tr>`)
+  }
+  if (logistics.portOfLoading) {
+    metaRows.push(`<tr><td class="border border-slate-300 p-2 font-medium bg-slate-50">Cảng xếp hàng (POL):</td><td class="border border-slate-300 p-2">${escapeHtml(logistics.portOfLoading)}</td></tr>`)
+  }
+  if (logistics.portOfDischarge) {
+    metaRows.push(`<tr><td class="border border-slate-300 p-2 font-medium bg-slate-50">Cảng dỡ hàng (POD):</td><td class="border border-slate-300 p-2">${escapeHtml(logistics.portOfDischarge)}</td></tr>`)
+  }
+  if (logistics.vesselName) {
+    metaRows.push(`<tr><td class="border border-slate-300 p-2 font-medium bg-slate-50">Tàu &amp; Chuyến (Vessel/Voy):</td><td class="border border-slate-300 p-2 font-mono">${escapeHtml(logistics.vesselName)}</td></tr>`)
+  }
+  if (logistics.docDate) {
+    metaRows.push(`<tr><td class="border border-slate-300 p-2 font-medium bg-slate-50">Ngày chứng từ:</td><td class="border border-slate-300 p-2 font-mono">${escapeHtml(logistics.docDate)}</td></tr>`)
+  }
+
+  let metaTableHtml = ''
+  if (metaRows.length > 0) {
+    metaTableHtml = `
+      <div class="ocr-meta-section my-4">
+        <h3 class="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-2">Thông tin nghiệp vụ Logistics</h3>
+        <table class="border-collapse border border-slate-300 w-full text-sm">
+          <tbody>
+            ${metaRows.join('')}
+          </tbody>
+        </table>
+      </div>
+    `
+  }
+
+  const textBodyHtml = `
+    <div class="ocr-content-section my-4">
+      <h3 class="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-2">Nội dung văn bản nhận dạng</h3>
+      <pre class="font-mono text-sm leading-relaxed whitespace-pre-wrap p-4 bg-slate-50/80 rounded-lg border border-slate-200 text-slate-800">${safeText}</pre>
+    </div>
+  `
+
+  return `
+    <div class="ocr-document-wrapper">
+      <h2 class="text-xl font-bold text-slate-900 border-b pb-2 mb-3">${safeTitle}</h2>
+      ${metaTableHtml}
+      ${textBodyHtml}
+    </div>
+  `.trim()
 }
 
 /**
@@ -230,26 +484,50 @@ export function extractTextFromBuffer(buffer: Buffer, fileName: string): string 
     return textContent
   }
 
-  // Đối với PDF: trích xuất các chuỗi text stream hiển thị trong PDF syntax
+  // Đối với PDF: trích xuất các chuỗi text stream hiển thị trong PDF syntax với bảo tồn ngắt dòng
   if (ext === '.pdf') {
-    const extractedChunks: string[] = []
-    // Match text blocks bên trong PDF: (Text content) Tj hoặc [(T)(e)(x)(t)] TJ
-    const tjRegex = /\(([^)]+)\)\s*Tj/g
-    let match
-    while ((match = tjRegex.exec(textContent)) !== null) {
-      if (match[1] && match[1].length > 1) {
-        extractedChunks.push(match[1])
+    const extractedLines: string[] = []
+    let currentLineChunks: string[] = []
+
+    // Match các khối chữ (Text) Tj, [(T)(e)] TJ, và toán tử ngắt dòng Td, TD, T*
+    const tokenRegex = /(\((?:[^)\\]|\\.)*\)\s*Tj|\[([^\]]*)\]\s*TJ|(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(?:Td|TD)|T\*)/g
+    let match: RegExpExecArray | null
+
+    while ((match = tokenRegex.exec(textContent)) !== null) {
+      const token = match[0]
+
+      if (token.includes('Tj')) {
+        const textMatch = token.match(/\((.*?)\)\s*Tj/)
+        if (textMatch && textMatch[1].trim()) {
+          currentLineChunks.push(textMatch[1].replace(/\\([()\\])/g, '$1'))
+        }
+      } else if (token.includes('TJ')) {
+        const innerArray = match[2] || ''
+        const parts = innerArray.match(/\((.*?)\)/g)
+        if (parts) {
+          const str = parts.map((p) => p.slice(1, -1).replace(/\\([()\\])/g, '$1')).join('')
+          if (str.trim()) currentLineChunks.push(str)
+        }
+      } else if (token.includes('Td') || token.includes('TD') || token === 'T*') {
+        if (currentLineChunks.length > 0) {
+          extractedLines.push(currentLineChunks.join('   '))
+          currentLineChunks = []
+        }
       }
     }
 
-    if (extractedChunks.length > 5) {
-      return extractedChunks.join(' ')
+    if (currentLineChunks.length > 0) {
+      extractedLines.push(currentLineChunks.join('   '))
     }
 
-    // Nếu PDF không có text stream rõ ràng, trích xuất chuỗi ascii/unicode có nghĩa
+    if (extractedLines.length > 0) {
+      return normalizeLogisticsText(extractedLines.join('\n'))
+    }
+
+    // Nếu không khớp toán tử PDF cấu trúc, lọc các chuỗi ascii/unicode có nghĩa
     const asciiMatches = textContent.match(/[A-Za-z0-9\s.,/#:;_\-()]{4,}/g)
     if (asciiMatches && asciiMatches.length > 10) {
-      return asciiMatches.slice(0, 200).join(' ')
+      return normalizeLogisticsText(asciiMatches.slice(0, 200).join('\n'))
     }
   }
 

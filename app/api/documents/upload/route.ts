@@ -8,7 +8,12 @@ import { PermissionService } from '@/lib/auth/permission-service'
 import { validateCsrf } from '@/lib/security/csrf'
 import { DOC_TYPE_LABEL } from '@/lib/labels'
 import type { DocType } from '@/lib/types'
-import { extractTextFromBuffer, extractLogisticsFields } from '@/lib/ocr/ocr-extractor'
+import {
+  extractTextFromBuffer,
+  extractTextFromBufferAsync,
+  extractLogisticsFields,
+  generateStructuredDocumentHtml,
+} from '@/lib/ocr/ocr-extractor'
 
 import {
   ALLOWED_EXTENSIONS,
@@ -151,9 +156,10 @@ export async function POST(req: Request) {
       const displayLabel = docType === 'OTHER' && customTypeName ? customTypeName : (DOC_TYPE_LABEL[docType as DocType] ?? docType)
       const title = `${displayLabel} ${shipment.jobNo}`
 
-      // 4. Trích xuất text & OCR Metadata thông minh
-      const rawOcrText = extractTextFromBuffer(fileBuffer, file.name)
+      // 4. Trích xuất text & OCR Metadata thông minh với bảo toàn bố cục format
+      const rawOcrText = await extractTextFromBufferAsync(fileBuffer, file.name)
       const extractedLogistics = extractLogisticsFields(rawOcrText)
+      const structuredHtml = generateStructuredDocumentHtml(title, rawOcrText, extractedLogistics)
 
       // Gói tạo Document + Version + OcrResult + StorageObject trong một transaction
       // Nếu bước DB lỗi -> Xóa file đã ghi trên storage để tránh rác mồ côi
@@ -177,7 +183,7 @@ export async function POST(req: Request) {
               docDate,
               createdBy: sessionUser.id,
               updatedBy: sessionUser.id,
-              editedHtml: `<p>${title}</p><p>${rawOcrText.slice(0, 500)}</p>`,
+              editedHtml: structuredHtml,
             },
           })
 
@@ -200,7 +206,10 @@ export async function POST(req: Request) {
               status: 'COMPLETED',
               confidenceScore: extractedLogistics.confidenceScore,
               rawText: rawOcrText,
-              structuredData: JSON.stringify(extractedLogistics),
+              structuredData: JSON.stringify({
+                ...extractedLogistics,
+                formattedText: rawOcrText,
+              }),
             },
           })
 

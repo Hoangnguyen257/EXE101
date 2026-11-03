@@ -14,7 +14,9 @@ import {
   ClockIcon,
   BuildingIcon,
   PackageIcon,
+  CopyIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { QRCodeSVG } from 'qrcode.react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -196,12 +198,30 @@ export function DocumentDetailView({
 
       {/* OCR Text Preview Card */}
       <Card>
-        <CardHeader>
-          <CardTitle>Nội dung trích xuất (OCR)</CardTitle>
-          <CardDescription>Văn bản được nhận dạng tự động từ hình ảnh chứng từ</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <div className="flex flex-col gap-1">
+            <CardTitle>Nội dung trích xuất (OCR)</CardTitle>
+            <CardDescription>Văn bản nhận dạng tự động giữ nguyên bố cục bảng biểu, phân cột và dòng gốc</CardDescription>
+          </div>
+          {document.ocrText && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                  navigator.clipboard.writeText(document.ocrText || '')
+                  toast.success('Đã sao chép văn bản OCR vào bộ nhớ tạm!')
+                }
+              }}
+              className="text-xs h-8"
+            >
+              <CopyIcon className="mr-1.5 size-3.5" />
+              Sao chép văn bản
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border bg-muted/30 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-foreground/90 max-h-96 overflow-y-auto">
+          <div className="rounded-lg border bg-muted/30 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-foreground/90 max-h-96 overflow-y-auto selection:bg-primary/20">
             {document.ocrText || 'Không có nội dung văn bản'}
           </div>
         </CardContent>

@@ -18,6 +18,7 @@ import {
   recognizeImageWithTesseract,
   extractLogisticsFields,
   detectPdfType,
+  generateStructuredDocumentHtml,
   type ExtractedLogisticsData,
 } from './ocr-extractor'
 
@@ -182,9 +183,24 @@ export class OCRWorkerService {
               status: 'COMPLETED',
               confidenceScore: structuredData.confidenceScore,
               rawText,
-              structuredData: JSON.stringify(structuredData),
+              structuredData: JSON.stringify({
+                ...structuredData,
+                formattedText: rawText,
+              }),
             },
           })
+
+          const doc = await prisma.document.findUnique({
+            where: { id: job.documentId },
+            select: { title: true },
+          })
+          if (doc) {
+            const formattedHtml = generateStructuredDocumentHtml(doc.title, rawText, structuredData)
+            await prisma.document.update({
+              where: { id: job.documentId },
+              data: { editedHtml: formattedHtml },
+            })
+          }
         } catch {
           // Bỏ qua lỗi DB trong môi trường kiểm thử unit
         }

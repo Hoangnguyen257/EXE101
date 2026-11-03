@@ -5,7 +5,12 @@ import { getSessionUser, SESSION_COOKIE_NAME } from '@/lib/auth/auth-service'
 import { validateCsrf } from '@/lib/security/csrf'
 import { DOC_TYPE_LABEL } from '@/lib/labels'
 import type { DocType } from '@/lib/types'
-import { extractTextFromBuffer, extractLogisticsFields } from '@/lib/ocr/ocr-extractor'
+import {
+  extractTextFromBuffer,
+  extractTextFromBufferAsync,
+  extractLogisticsFields,
+  generateStructuredDocumentHtml,
+} from '@/lib/ocr/ocr-extractor'
 import {
   MAX_FILE_SIZE,
   validateComprehensiveUpload,
@@ -139,8 +144,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // 6. Trích xuất text & thông tin OCR thông minh
-    const rawOcrText = extractTextFromBuffer(fileBuffer, pending.fileName)
+    // 6. Trích xuất text & thông tin OCR thông minh với bảo toàn bố cục format
+    const rawOcrText = await extractTextFromBufferAsync(fileBuffer, pending.fileName)
     const extractedLogistics = extractLogisticsFields(rawOcrText)
 
     const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
@@ -149,6 +154,7 @@ export async function POST(req: Request) {
       : (DOC_TYPE_LABEL[pending.docType as DocType] ?? pending.docType)
     const title = `${displayLabel} ${pending.shipment.jobNo}`
     const ext = path.extname(pending.fileName).toLowerCase()
+    const structuredHtml = generateStructuredDocumentHtml(title, rawOcrText, extractedLogistics)
 
     // Gói tạo Document + Version + OcrResult + StorageObject trong một transaction
     // Nếu bước DB lỗi -> Xóa file đã upload trên storage để rollback
@@ -173,7 +179,7 @@ export async function POST(req: Request) {
             docDate: pending.docDate || new Date().toISOString().slice(0, 10),
             createdBy: sessionUser.id,
             updatedBy: sessionUser.id,
-            editedHtml: `<p>${title}</p><p>${rawOcrText.slice(0, 500)}</p>`,
+            editedHtml: structuredHtml,
           },
         })
 
@@ -198,7 +204,10 @@ export async function POST(req: Request) {
             status: 'COMPLETED',
             confidenceScore: extractedLogistics.confidenceScore,
             rawText: rawOcrText,
-            structuredData: JSON.stringify(extractedLogistics),
+            structuredData: JSON.stringify({
+              ...extractedLogistics,
+              formattedText: rawOcrText,
+            }),
           },
         })
 

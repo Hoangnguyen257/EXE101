@@ -58,7 +58,8 @@ export function validateFileMagicBytes(buffer: Buffer, declaredMimeType?: string
 
   // 1. PDF: %PDF- (0x25 0x50 0x44 0x46)
   if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
-    if (declaredMimeType && declaredMimeType !== 'application/pdf') {
+    const validPdfMimes = ['application/pdf', 'application/x-pdf', 'application/octet-stream', 'binary/octet-stream']
+    if (declaredMimeType && !validPdfMimes.includes(declaredMimeType.toLowerCase())) {
       return { isValid: false, error: 'Nội dung thực tế (PDF) không khớp loại MIME khai báo' }
     }
     return { isValid: true, mimeType: 'application/pdf' }
@@ -66,7 +67,8 @@ export function validateFileMagicBytes(buffer: Buffer, declaredMimeType?: string
 
   // 2. PNG: 0x89 0x50 0x4E 0x47 (‰PNG)
   if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
-    if (declaredMimeType && declaredMimeType !== 'image/png') {
+    const validPngMimes = ['image/png', 'application/octet-stream', 'binary/octet-stream']
+    if (declaredMimeType && !validPngMimes.includes(declaredMimeType.toLowerCase())) {
       return { isValid: false, error: 'Nội dung thực tế (PNG) không khớp loại MIME khai báo' }
     }
     return { isValid: true, mimeType: 'image/png' }
@@ -74,7 +76,8 @@ export function validateFileMagicBytes(buffer: Buffer, declaredMimeType?: string
 
   // 3. JPEG/JPG: 0xFF 0xD8 0xFF
   if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-    if (declaredMimeType && !['image/jpeg', 'image/jpg'].includes(declaredMimeType)) {
+    const validJpgMimes = ['image/jpeg', 'image/jpg', 'image/pjpeg', 'application/octet-stream', 'binary/octet-stream']
+    if (declaredMimeType && !validJpgMimes.includes(declaredMimeType.toLowerCase())) {
       return { isValid: false, error: 'Nội dung thực tế (JPEG) không khớp loại MIME khai báo' }
     }
     return { isValid: true, mimeType: 'image/jpeg' }
@@ -153,7 +156,7 @@ export function validateComprehensiveUpload(
   // 4. Kiểm tra chuyên sâu cho tập tin PDF
   if (magicResult.mimeType === 'application/pdf') {
     // Quét tìm ký hiệu kết thúc %%EOF trong toàn bộ file hoặc vùng đệm cuối (hỗ trợ file eDO có metadata lớn)
-    const hasEof = buffer.includes(Buffer.from('%%EOF'))
+    const hasEof = buffer.includes(Buffer.from('%%EOF')) || buffer.includes(Buffer.from('%EOF'))
     if (!hasEof) {
       return {
         isValid: false,
